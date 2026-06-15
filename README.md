@@ -1,1 +1,278 @@
-# emdash-action-maintenance
+# @bnomei/emdash-action-maintenance
+
+[![npm version](https://img.shields.io/npm/v/@bnomei/emdash-action-maintenance.svg)](https://www.npmjs.com/package/@bnomei/emdash-action-maintenance)
+[![npm downloads](https://img.shields.io/npm/dm/@bnomei/emdash-action-maintenance.svg)](https://www.npmjs.com/package/@bnomei/emdash-action-maintenance)
+[![license](https://img.shields.io/npm/l/@bnomei/emdash-action-maintenance.svg)](https://www.npmjs.com/package/@bnomei/emdash-action-maintenance)
+[![types](https://img.shields.io/badge/types-included-blue.svg)](./package.json)
+[![source](https://img.shields.io/badge/source-GitHub-181717.svg?logo=github)](https://github.com/bnomei/emdash-action-maintenance)
+
+Maintenance mode for EmDash sites.
+
+`emdash-action-maintenance` stores a shared maintenance state, exposes admin routes for toggling it, and provides action descriptors that `@bnomei/emdash-actions` can render as dashboard buttons. It does not own your public routing by itself. Your Astro app opts in by adding the middleware helper from this package.
+
+## Install
+
+```sh
+vp install @bnomei/emdash-action-maintenance
+```
+
+Register the native plugin with EmDash. This goes in the Astro config file where your `emdash()` integration is configured:
+
+```ts
+// astro.config.mjs
+import { defineConfig } from "astro/config";
+import emdash from "emdash/astro";
+import { actionMaintenance } from "@bnomei/emdash-action-maintenance";
+
+export default defineConfig({
+  integrations: [
+    emdash({
+      plugins: [
+        actionMaintenance({
+          defaultMessage: "This site is temporarily unavailable. Please check back soon.",
+          defaultMessages: {
+            de: "Diese Website ist vorubergehend nicht erreichbar.",
+            fr: "Ce site est temporairement indisponible.",
+          },
+        }),
+      ],
+    }),
+  ],
+});
+```
+
+## Middleware
+
+Add the helper to your Astro middleware file, usually `src/middleware.ts`, to make maintenance mode affect public visitors:
+
+```ts
+// src/middleware.ts
+import { defineMiddleware } from "astro:middleware";
+import { createMaintenanceMiddleware } from "@bnomei/emdash-action-maintenance";
+
+export const onRequest = defineMiddleware(createMaintenanceMiddleware());
+```
+
+When maintenance mode is disabled, the helper calls `next()`. When it is enabled, the helper returns a `503` HTML response with `Cache-Control: no-store` and a `Retry-After` header.
+
+The helper skips EmDash routes, Astro assets, and common metadata paths by default. Add a custom bypass in `src/middleware.ts` when your project has public routes that must stay online:
+
+```ts
+// src/middleware.ts
+export const onRequest = defineMiddleware(
+  createMaintenanceMiddleware({
+    bypass: (_context, url) =>
+      url.pathname.startsWith("/api/webhooks/") || url.pathname === "/health",
+  }),
+);
+```
+
+## Custom Template
+
+If you want a custom maintenance page, first ask the helper to rewrite to it from `src/middleware.ts`:
+
+```ts
+// src/middleware.ts
+import { defineMiddleware } from "astro:middleware";
+import { createMaintenanceMiddleware } from "@bnomei/emdash-action-maintenance";
+
+export const onRequest = defineMiddleware(
+  createMaintenanceMiddleware({
+    template: "/maintenance",
+  }),
+);
+```
+
+Then add the Astro page at `src/pages/maintenance.astro`:
+
+```astro
+---
+import { DEFAULT_MESSAGE } from "@bnomei/emdash-action-maintenance";
+
+Astro.response.status = 503;
+Astro.response.headers.set("Cache-Control", "no-store");
+Astro.response.headers.set("Retry-After", "300");
+
+const state = Astro.locals.maintenance;
+const message = state?.message ?? DEFAULT_MESSAGE;
+const lang = state?.messageLocale ?? state?.locale ?? "en";
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Maintenance</title>
+  </head>
+  <body>
+    <main>
+      <h1>Maintenance</h1>
+      <p>{message}</p>
+    </main>
+  </body>
+</html>
+```
+
+The helper stores the public state on `Astro.locals.maintenance` before rewriting. For TypeScript projects, add this to `src/env.d.ts`:
+
+```ts
+// src/env.d.ts
+declare namespace App {
+  interface Locals {
+    maintenance?: import("@bnomei/emdash-action-maintenance").PublicMaintenanceState;
+  }
+}
+```
+
+For complete control, return your own response from `src/middleware.ts` instead of using a template:
+
+```ts
+// src/middleware.ts
+export const onRequest = defineMiddleware(
+  createMaintenanceMiddleware({
+    render: (state) =>
+      new Response(`Maintenance: ${state.message}`, {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+          "Content-Type": "text/plain; charset=utf-8",
+          "Retry-After": "300",
+        },
+      }),
+  }),
+);
+```
+
+## Dashboard Buttons
+
+Use this package with `@bnomei/emdash-actions` when you want maintenance controls in the EmDash dashboard:
+
+```sh
+vp install @bnomei/emdash-actions @bnomei/emdash-action-maintenance
+```
+
+```ts
+// astro.config.mjs
+import { defineConfig } from "astro/config";
+import emdash from "emdash/astro";
+import { actionsPlugin } from "@bnomei/emdash-actions";
+import {
+  PLUGIN_ID as MAINTENANCE_PLUGIN_ID,
+  actionMaintenance,
+} from "@bnomei/emdash-action-maintenance";
+
+export default defineConfig({
+  integrations: [
+    emdash({
+      plugins: [
+        actionsPlugin({
+          providers: [
+            {
+              pluginId: MAINTENANCE_PLUGIN_ID,
+              label: "Maintenance",
+            },
+          ],
+        }),
+        actionMaintenance(),
+      ],
+    }),
+  ],
+});
+```
+
+The provider exposes actions for toggling, enabling, and disabling maintenance mode. The dashboard UI renders those as buttons, but this plugin owns the state and routes.
+
+## Persistence
+
+The plugin stores one state record in EmDash plugin KV. This is the persisted state shape, not a file you create manually:
+
+```ts
+type MaintenanceState = {
+  enabled: boolean;
+  message: string;
+  messages: Record<string, string>;
+  updatedAt: string | null;
+};
+```
+
+Key details:
+
+- `enabled` controls whether the middleware blocks public requests.
+- `message` is the fallback public message.
+- `messages` stores locale-specific messages keyed by locale code.
+- `updatedAt` records when an admin action last changed the state.
+
+The state is not kept in process memory. Admin actions write to plugin KV, and the middleware reads the public state route for each request. In a scaled Cloudflare/serverless deployment, every instance uses the same EmDash plugin KV backend instead of a local variable. Propagation and consistency follow the configured KV/storage backend; this plugin does not add an extra in-memory cache.
+
+If no state has been saved yet, maintenance mode is disabled and the configured default message is used as the fallback.
+
+## Routes
+
+The plugin exposes these routes under `/_emdash/api/plugins/action-maintenance/`:
+
+| Route                 | Auth   | Purpose                                                              |
+| --------------------- | ------ | -------------------------------------------------------------------- |
+| `status`              | Admin  | Read the full maintenance state and locale config.                   |
+| `summary`             | Admin  | Alias for `status`, useful for generic action dashboards.            |
+| `enable`              | Admin  | Enable maintenance mode. Accepts `POST` only.                        |
+| `disable`             | Admin  | Disable maintenance mode. Accepts `POST` only.                       |
+| `toggle`              | Admin  | Toggle maintenance mode, optionally with a new message. `POST` only. |
+| `public-state`        | Public | Read the public state from SSR middleware. Accepts `?locale=fr`.     |
+| `.well-known/actions` | Admin  | Return action descriptors for dashboard action surfaces.             |
+
+Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. These payloads are request bodies sent to the plugin routes by dashboard buttons or custom clients:
+
+```ts
+// POST /_emdash/api/plugins/action-maintenance/toggle
+{
+  enabled: true,
+  message: "This site is temporarily unavailable. Please check back soon.",
+  messages: {
+    de: "Diese Website ist vorubergehend nicht erreichbar.",
+  },
+}
+```
+
+Messages are bounded before storage to keep the routes suitable for Cloudflare/serverless plugin KV.
+
+## Options
+
+These options go into the `actionMaintenance()` call in `astro.config.mjs`:
+
+```ts
+// astro.config.mjs
+actionMaintenance({
+  defaultMessage: "This site is temporarily unavailable. Please check back soon.",
+  defaultMessages: {
+    de: "Diese Website ist vorubergehend nicht erreichbar.",
+  },
+  defaultLocale: "en",
+  locales: ["en", "de"],
+});
+```
+
+Available plugin options:
+
+- `defaultMessage`: Fallback message used before a custom state is saved.
+- `defaultMessages`: Locale-specific default messages.
+- `defaultLocale`: Locale used when no request locale is available.
+- `locales`: Supported locale list exposed by the status route.
+- `entrypoint`: Native plugin entrypoint. Defaults to `@bnomei/emdash-action-maintenance`.
+
+Available middleware options:
+
+- `template`: Astro route to rewrite to when maintenance is enabled.
+- `render`: Custom response function. Takes priority over `template`.
+- `response`: Options for the built-in HTML response.
+- `locale`: Locale override. Defaults to `context.currentLocale`.
+- `bypass`: Additional route bypass function.
+
+## Development
+
+```sh
+vp install
+vp run typecheck
+vp run build
+vp run pack:check
+```
