@@ -181,7 +181,7 @@ export default defineConfig({
 });
 ```
 
-The provider exposes actions for toggling, enabling, and disabling maintenance mode. The dashboard UI renders those as buttons, but this plugin owns the state and routes.
+The provider exposes a single state-aware dashboard toggle action. The dashboard button label is read from the persisted maintenance state and updates after each successful toggle. Direct `enable` and `disable` routes remain available for custom clients, but the action manifest uses one `maintenance.toggle` button.
 
 ## Persistence
 
@@ -219,7 +219,7 @@ The plugin exposes these routes under `/_emdash/api/plugins/action-maintenance/`
 | `disable`             | Admin  | Disable maintenance mode. Accepts `POST` only.                       |
 | `toggle`              | Admin  | Toggle maintenance mode, optionally with a new message. `POST` only. |
 | `public-state`        | Public | Read the public state from SSR middleware. Accepts `?locale=fr`.     |
-| `.well-known/actions` | Admin  | Return action descriptors for dashboard action surfaces.             |
+| `.well-known/actions` | Admin  | Return the state-aware dashboard toggle action descriptor.           |
 
 Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. These payloads are request bodies sent to the plugin routes by dashboard buttons or custom clients:
 
@@ -230,6 +230,22 @@ Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. 
   message: "This site is temporarily unavailable. Please check back soon.",
   messages: {
     de: "Diese Website ist vorubergehend nicht erreichbar.",
+  },
+}
+```
+
+The toggle route returns the persisted state plus the stable action patch consumed by `@bnomei/emdash-actions`. When maintenance mode is disabled, the manifest returns `Enable maintenance mode`; after a successful enable, the response patches the same button to `Disable maintenance mode`. The next successful toggle patches it back.
+
+```ts
+// Response body from POST /_emdash/api/plugins/action-maintenance/toggle
+{
+  ok: true,
+  message: "Maintenance mode enabled.",
+  action: {
+    label: "Disable maintenance mode",
+    icon: "warning",
+    tone: "danger",
+    confirm: "Bring the public site back online?",
   },
 }
 ```

@@ -1,5 +1,7 @@
 import { PluginRouteError, getFallbackChain, getI18nConfig, type RouteContext } from "emdash";
 import type {
+  MaintenanceActionDescriptor,
+  MaintenanceActionPatch,
   LocalizedMaintenanceMessages,
   MaintenanceActionResult,
   MaintenanceActionsManifest,
@@ -17,6 +19,10 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_LOCALE_LENGTH = 40;
 const MAX_LOCALE_MESSAGES = 64;
 const LOCALE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const ENABLE_MAINTENANCE_LABEL = "Enable maintenance mode";
+const DISABLE_MAINTENANCE_LABEL = "Disable maintenance mode";
+const ENABLE_MAINTENANCE_CONFIRM = "Put the public site into maintenance mode?";
+const DISABLE_MAINTENANCE_CONFIRM = "Bring the public site back online?";
 
 type MaintenanceStateContext = Pick<RouteContext, "kv"> & Partial<Pick<RouteContext, "site">>;
 
@@ -113,46 +119,15 @@ export async function disableRoute(
   return actionResult(state);
 }
 
-export async function actionsManifestRoute(): Promise<MaintenanceActionsManifest> {
+export async function actionsManifestRoute(
+  ctx: RouteContext,
+  options: MaintenanceRouteOptions = {},
+): Promise<MaintenanceActionsManifest> {
+  const state = await readMaintenanceState(ctx, options);
+  const toggle = maintenanceToggleAction(state);
+
   return {
-    actions: [
-      {
-        id: "maintenance.toggle",
-        label: "Toggle maintenance mode",
-        icon: "power",
-        tone: "warning",
-        pluginId: PLUGIN_ID,
-        route: "toggle",
-        method: "POST",
-        confirm: "Toggle maintenance mode?",
-        resultMode: "emdash-action-result-v1",
-        placement: "dashboard",
-      },
-      {
-        id: "maintenance.enable",
-        label: "Enable maintenance mode",
-        icon: "warning",
-        tone: "danger",
-        pluginId: PLUGIN_ID,
-        route: "enable",
-        method: "POST",
-        confirm: "Put the public site into maintenance mode?",
-        resultMode: "emdash-action-result-v1",
-        placement: "global",
-      },
-      {
-        id: "maintenance.disable",
-        label: "Disable maintenance mode",
-        icon: "check",
-        tone: "positive",
-        pluginId: PLUGIN_ID,
-        route: "disable",
-        method: "POST",
-        confirm: "Bring the public site back online?",
-        resultMode: "emdash-action-result-v1",
-        placement: "global",
-      },
-    ],
+    actions: [maintenanceToggleDescriptor(toggle)],
   };
 }
 
@@ -193,19 +168,53 @@ export function publicState(
 
 export function actionResult(state: MaintenanceState): MaintenanceActionResult {
   const message = state.enabled ? "Maintenance mode enabled." : "Maintenance mode disabled.";
+  const action = maintenanceToggleAction(state);
+
   return {
     ok: true,
     severity: state.enabled ? "warning" : "success",
     status: 200,
     message,
-    label: state.enabled ? "Disable maintenance" : "Enable maintenance",
-    icon: state.enabled ? "warning" : "check",
+    label: action.label,
+    icon: action.icon,
+    action,
     notification: {
       type: state.enabled ? "warning" : "success",
       message,
     },
     state,
   };
+}
+
+function maintenanceToggleDescriptor(action: MaintenanceActionPatch): MaintenanceActionDescriptor {
+  return {
+    id: "maintenance.toggle",
+    label: action.label,
+    icon: action.icon,
+    tone: action.tone,
+    pluginId: PLUGIN_ID,
+    route: "toggle",
+    method: "POST",
+    confirm: action.confirm,
+    resultMode: "emdash-action-result-v1",
+    placement: "dashboard",
+  };
+}
+
+function maintenanceToggleAction(state: Pick<MaintenanceState, "enabled">): MaintenanceActionPatch {
+  return state.enabled
+    ? {
+        label: DISABLE_MAINTENANCE_LABEL,
+        icon: "warning",
+        tone: "danger",
+        confirm: DISABLE_MAINTENANCE_CONFIRM,
+      }
+    : {
+        label: ENABLE_MAINTENANCE_LABEL,
+        icon: "check",
+        tone: "positive",
+        confirm: ENABLE_MAINTENANCE_CONFIRM,
+      };
 }
 
 export function createMaintenanceResponse(

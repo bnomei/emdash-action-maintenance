@@ -1,4 +1,5 @@
 export type MaintenanceSeverity = "success" | "info" | "warning" | "error";
+export type MaintenanceActionTone = "default" | "positive" | "warning" | "danger" | "info";
 
 export type LocalizedMaintenanceMessages = Record<string, string>;
 
@@ -31,6 +32,7 @@ export interface MaintenanceActionResult {
   message: string;
   label: string;
   icon: string;
+  action: MaintenanceActionPatch;
   notification: {
     type: MaintenanceSeverity;
     message: string;
@@ -38,11 +40,18 @@ export interface MaintenanceActionResult {
   state: MaintenanceState;
 }
 
+export interface MaintenanceActionPatch {
+  label: string;
+  icon: string;
+  tone: MaintenanceActionTone;
+  confirm: string;
+}
+
 export interface MaintenanceActionDescriptor {
   id: string;
   label: string;
   icon: string;
-  tone: "default" | "positive" | "warning" | "danger";
+  tone: MaintenanceActionTone;
   pluginId: string;
   route: string;
   method: "POST";

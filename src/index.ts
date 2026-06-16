@@ -20,7 +20,9 @@ export type {
   ActionMaintenanceDescriptorOptions,
   LocalizedMaintenanceMessages,
   MaintenanceActionDescriptor,
+  MaintenanceActionPatch,
   MaintenanceActionResult,
+  MaintenanceActionTone,
   MaintenanceActionsManifest,
   MaintenanceLocaleConfig,
   MaintenanceSeverity,
@@ -101,7 +103,7 @@ export function createPlugin(options: ActionMaintenanceCreatePluginOptions = {})
         handler: (ctx) => disableRoute(ctx, routeOptions),
       },
       ".well-known/actions": {
-        handler: actionsManifestRoute,
+        handler: (ctx) => actionsManifestRoute(ctx, routeOptions),
       },
     },
   });
