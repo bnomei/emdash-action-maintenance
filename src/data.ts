@@ -49,9 +49,10 @@ export async function publicStateRoute(
   options: MaintenanceRouteOptions = {},
 ): Promise<PublicMaintenanceState> {
   const state = await readMaintenanceState(ctx, options);
+  const config = localeConfig(ctx, options, state);
   return publicState(state, {
-    ...localeConfig(ctx, options, state),
-    locale: readRequestLocale(ctx),
+    ...config,
+    locale: readRequestLocale(ctx, config.locales),
   });
 }
 
@@ -156,10 +157,11 @@ export function publicState(
     locales: ["en"],
   },
 ): PublicMaintenanceState {
-  const selected = selectMessage(state, options.locale ?? null, options.defaultLocale);
+  const locale = normalizeRequestedLocale(options.locale ?? null, options.locales);
+  const selected = selectMessage(state, locale, options.defaultLocale);
   return {
     enabled: state.enabled,
-    locale: options.locale ?? null,
+    locale,
     message: selected.message,
     messageLocale: selected.locale,
     updatedAt: state.updatedAt,
@@ -386,15 +388,25 @@ function localeConfig(
   };
 }
 
-function readRequestLocale(ctx: RouteContext): string | null {
+function readRequestLocale(ctx: RouteContext, locales: string[]): string | null {
   const inputLocale = asRecord(ctx.input).locale;
-  if (typeof inputLocale === "string" && inputLocale.trim()) return inputLocale.trim();
+  if (typeof inputLocale === "string") {
+    const locale = normalizeRequestedLocale(inputLocale, locales);
+    if (locale) return locale;
+  }
 
   try {
-    return new URL(ctx.request.url).searchParams.get("locale");
+    return normalizeRequestedLocale(new URL(ctx.request.url).searchParams.get("locale"), locales);
   } catch {
     return null;
   }
+}
+
+function normalizeRequestedLocale(locale: string | null, locales: string[]): string | null {
+  if (typeof locale !== "string") return null;
+  const cleanLocale = locale.trim();
+  if (!cleanLocale) return null;
+  return locales.includes(cleanLocale) ? cleanLocale : null;
 }
 
 function selectMessage(

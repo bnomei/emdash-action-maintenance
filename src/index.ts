@@ -47,6 +47,7 @@ export {
   createMaintenanceResponse,
   pluginRoute,
   publicState,
+  publicStateRoute,
   readMaintenanceState,
   writeMaintenanceState,
 } from "./data";
