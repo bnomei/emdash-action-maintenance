@@ -12,7 +12,11 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": []
+    "types": [],
+    "declarationMap": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["src"]
 }
