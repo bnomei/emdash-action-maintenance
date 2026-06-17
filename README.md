@@ -13,7 +13,7 @@ Maintenance mode for EmDash sites.
 ## Install
 
 ```sh
-vp install @bnomei/emdash-action-maintenance
+npm install @bnomei/emdash-action-maintenance
 ```
 
 Register the native plugin with EmDash. This goes in the Astro config file where your `emdash()` integration is configured:
@@ -149,7 +149,7 @@ export const onRequest = defineMiddleware(
 Use this package with `@bnomei/emdash-actions` when you want maintenance controls in the EmDash dashboard:
 
 ```sh
-vp install @bnomei/emdash-actions @bnomei/emdash-action-maintenance
+npm install @bnomei/emdash-actions @bnomei/emdash-action-maintenance
 ```
 
 ```ts
@@ -287,8 +287,8 @@ Available middleware options:
 ## Development
 
 ```sh
-vp install
-vp run typecheck
-vp run build
-vp run pack:check
+npm install
+npm run typecheck
+npm run build
+npm run pack:check
 ```

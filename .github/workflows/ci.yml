@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   checks:
-    name: VitePlus checks
+    name: Viteplus checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -32,14 +32,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run VitePlus checks
-        run: npx vp check .
+      - name: Run Viteplus checks
+        run: npm run check
 
       - name: Run TypeScript
         run: npm run typecheck
 
-      - name: Validate VitePlus package build
-        run: npx vp pack src/index.ts --format esm --dts --clean --tsconfig tsconfig.json --publint
+      - name: Validate Viteplus package build
+        run: npm run pack:check
 
       - name: Validate published types
         run: npm run types:check
