@@ -1,0 +1,240 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  actionsManifestRoute,
+  createMaintenanceMiddleware,
+  createMaintenanceResponse,
+  disableRoute,
+  enableRoute,
+  publicState,
+  publicStateRoute,
+  readMaintenanceState,
+  statusRoute,
+  toggleRoute,
+} from "../dist/index.mjs";
+
+function createKv(initial) {
+  const store = new Map(initial ? [["state:maintenance", initial]] : []);
+  return {
+    store,
+    async get(key) {
+      return store.get(key) ?? null;
+    },
+    async set(key, value) {
+      store.set(key, value);
+    },
+  };
+}
+
+function routeContext({ method = "GET", input = {}, state, url = "https://example.test/" } = {}) {
+  return {
+    input,
+    kv: createKv(state),
+    request: new Request(url, { method }),
+    site: { locale: "en" },
+  };
+}
+
+test("maintenance state normalization filters invalid stored values and applies defaults", async () => {
+  const ctx = routeContext({
+    state: {
+      enabled: "yes",
+      message: "   ",
+      messages: {
+        en: " English default ",
+        de: " Deutsch ",
+        "../bad": "ignored",
+        empty: "   ",
+        object: { text: "ignored" },
+      },
+      updatedAt: 123,
+    },
+  });
+
+  const state = await readMaintenanceState(ctx, {
+    defaultMessage: "Fallback message",
+    defaultMessages: { en: "Configured English", fr: " Français " },
+  });
+
+  assert.equal(state.enabled, false);
+  assert.equal(state.message, "Fallback message");
+  assert.deepEqual(state.messages, {
+    en: "English default",
+    fr: "Français",
+    de: "Deutsch",
+  });
+  assert.equal(state.updatedAt, null);
+});
+
+test("route methods require POST for mutations and expose POST action descriptors", async () => {
+  await assert.rejects(() => toggleRoute(routeContext()), /only accepts POST/);
+  await assert.rejects(() => enableRoute(routeContext()), /only accepts POST/);
+  await assert.rejects(() => disableRoute(routeContext()), /only accepts POST/);
+
+  const manifest = await actionsManifestRoute(routeContext());
+  assert.equal(manifest.actions[0].route, "toggle");
+  assert.equal(manifest.actions[0].method, "POST");
+
+  const enableCtx = routeContext({ method: "POST", input: { message: "Back soon" } });
+  const enabled = await enableRoute(enableCtx);
+  assert.equal(enabled.state.enabled, true);
+  assert.equal(enabled.state.message, "Back soon");
+
+  const disableCtx = routeContext({ method: "POST", state: enabled.state });
+  const disabled = await disableRoute(disableCtx);
+  assert.equal(disabled.state.enabled, false);
+});
+
+test("public state uses locale fallback chains and falls back on invalid locale values", async () => {
+  const state = {
+    enabled: true,
+    message: "Base message",
+    messages: {
+      en: "English message",
+      fr: "French message",
+      "fr-CA": "Canadian French message",
+    },
+    updatedAt: "2026-06-17T00:00:00.000Z",
+  };
+
+  assert.deepEqual(
+    publicState(state, { defaultLocale: "en", locales: ["en", "fr"], locale: "fr-CA" }),
+    {
+      enabled: true,
+      locale: "fr-CA",
+      message: "Canadian French message",
+      messageLocale: "fr-CA",
+      updatedAt: state.updatedAt,
+    },
+  );
+
+  assert.equal(
+    publicState(state, { defaultLocale: "en", locales: ["en", "fr"], locale: "fr" }).message,
+    "French message",
+  );
+
+  assert.deepEqual(publicState(state, { defaultLocale: "en", locales: ["en"], locale: "../bad" }), {
+    enabled: true,
+    locale: "../bad",
+    message: "English message",
+    messageLocale: "en",
+    updatedAt: state.updatedAt,
+  });
+});
+
+test("public state route reads request locale and status includes locale configuration", async () => {
+  const state = {
+    enabled: true,
+    message: "Base",
+    messages: { en: "English", de: "Deutsch" },
+    updatedAt: null,
+  };
+  const ctx = routeContext({ state, url: "https://example.test/?locale=de" });
+
+  const status = await statusRoute(ctx, { defaultLocale: "en", locales: ["en", "de"] });
+  assert.deepEqual(status.locales, ["en", "de"]);
+
+  const publicStatus = await publicStateRoute(ctx, { defaultLocale: "en", locales: ["en", "de"] });
+  assert.equal(publicStatus.locale, "de");
+  assert.equal(publicStatus.message, "Deutsch");
+  assert.equal(publicStatus.messageLocale, "de");
+});
+
+test("maintenance response escapes HTML in title, language, and message", async () => {
+  const response = createMaintenanceResponse(
+    {
+      enabled: true,
+      locale: 'en" onmouseover="alert(1)',
+      message: "<script>alert(\"x\")</script> & 'quoted'",
+      messageLocale: null,
+      updatedAt: null,
+    },
+    { title: "Maintenance <window>", retryAfterSeconds: 60 },
+  );
+  const html = await response.text();
+
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("Retry-After"), "60");
+  assert.match(html, /Maintenance &lt;window&gt;/);
+  assert.match(
+    html,
+    /&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt; &amp; &#039;quoted&#039;/,
+  );
+  assert.match(html, /lang="en&quot; onmouseover=&quot;alert\(1\)"/);
+  assert.doesNotMatch(html, /<script>alert/);
+});
+
+test("middleware bypasses default asset and API paths before fetching public state", async () => {
+  const middleware = createMaintenanceMiddleware();
+  const calls = [];
+  const locals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        calls.push("public-route");
+        return {
+          success: true,
+          data: {
+            enabled: true,
+            locale: null,
+            message: "Down",
+            messageLocale: "en",
+            updatedAt: null,
+          },
+        };
+      },
+    },
+  };
+
+  for (const path of [
+    "/_emdash/api",
+    "/_astro/client.js",
+    "/favicon.ico",
+    "/robots.txt",
+    "/sitemap.xml",
+  ]) {
+    const response = await middleware(
+      { request: new Request(`https://example.test${path}`), locals },
+      () => new Response("next"),
+    );
+    assert.equal(await response.text(), "next");
+  }
+
+  assert.deepEqual(calls, []);
+});
+
+test("middleware serves maintenance response and bypasses static template path", async () => {
+  const middleware = createMaintenanceMiddleware({ template: "/maintenance" });
+  const locals = {
+    emdash: {
+      handlePublicPluginApiRoute(pluginId, method, path, request) {
+        assert.equal(pluginId, "action-maintenance");
+        assert.equal(method, "GET");
+        assert.equal(path, "/public-state");
+        assert.equal(new URL(request.url).searchParams.get("locale"), "de");
+        return {
+          success: true,
+          data: {
+            enabled: true,
+            locale: "de",
+            message: "Wartung",
+            messageLocale: "de",
+            updatedAt: null,
+          },
+        };
+      },
+    },
+  };
+
+  const bypassed = await middleware(
+    { request: new Request("https://example.test/maintenance"), currentLocale: "de", locals },
+    () => new Response("template"),
+  );
+  assert.equal(await bypassed.text(), "template");
+
+  const response = await middleware(
+    { request: new Request("https://example.test/page"), currentLocale: "de", locals },
+    () => new Response("next"),
+  );
+  assert.equal(response.status, 503);
+  assert.match(await response.text(), /Wartung/);
+});
