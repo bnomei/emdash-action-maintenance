@@ -36,14 +36,14 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
 
-      - name: Run VitePlus checks
-        run: npx vp check .
+      - name: Run Viteplus checks
+        run: npm run check
 
       - name: Run TypeScript
         run: npm run typecheck
 
-      - name: Validate VitePlus package build
-        run: npx vp pack src/index.ts --format esm --dts --clean --tsconfig tsconfig.json --publint
+      - name: Validate Viteplus package build
+        run: npm run pack:check
 
       - name: Validate published types
         run: npm run types:check
