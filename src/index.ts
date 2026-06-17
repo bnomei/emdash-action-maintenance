@@ -44,10 +44,16 @@ export {
   PLUGIN_ID,
   PLUGIN_VERSION,
   actionResult,
+  actionsManifestRoute,
   createMaintenanceResponse,
+  disableRoute,
+  enableRoute,
   pluginRoute,
   publicState,
+  publicStateRoute,
   readMaintenanceState,
+  statusRoute,
+  toggleRoute,
   writeMaintenanceState,
 } from "./data";
 export { createMaintenanceMiddleware, handleMaintenanceMode } from "./middleware";

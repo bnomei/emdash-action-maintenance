@@ -39,6 +39,7 @@
     "access": "public"
   },
   "scripts": {
+    "test": "npm run build && node --test test/*.test.mjs",
     "build": "vp pack src/index.ts --format esm --dts --clean --tsconfig tsconfig.json",
     "check": "vp check .",
     "pack:check": "vp pack src/index.ts --format esm --dts --clean --tsconfig tsconfig.json --publint",
