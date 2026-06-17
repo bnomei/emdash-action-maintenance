@@ -276,6 +276,11 @@ Available plugin options:
 - `locales`: Supported locale list exposed by the status route.
 - `entrypoint`: Native plugin entrypoint. Defaults to `@bnomei/emdash-action-maintenance`.
 
+The public state route only honors request locales from `ctx.input.locale` or
+`?locale=` when they match one of the configured locale keys. Unknown, blank,
+or missing request locales are ignored, so the returned message falls back to
+`defaultLocale` consistently for both input sources.
+
 Available middleware options:
 
 - `template`: Astro route to rewrite to when maintenance is enabled.
