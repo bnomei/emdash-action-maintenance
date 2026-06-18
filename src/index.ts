@@ -16,6 +16,20 @@ import type {
 } from "./types";
 
 export type {
+  LocalizedString,
+  MaintenanceI18nConfig,
+  MaintenanceI18nMessages,
+  MaintenanceMessageKey,
+} from "./i18n";
+export {
+  DEFAULT_LOCALE,
+  DEFAULT_MAINTENANCE_I18N,
+  localeFallbacks,
+  localizedMaintenanceMessage,
+  localizedString,
+  maintenanceMessage,
+} from "./i18n";
+export type {
   ActionMaintenanceCreatePluginOptions,
   ActionMaintenanceDescriptorOptions,
   LocalizedMaintenanceMessages,
@@ -72,6 +86,7 @@ export function actionMaintenance(
       defaultLocale: options.defaultLocale,
       defaultMessage: options.defaultMessage,
       defaultMessages: options.defaultMessages,
+      i18n: options.i18n,
       locales: options.locales,
     },
   };
@@ -82,6 +97,7 @@ export function createPlugin(options: ActionMaintenanceCreatePluginOptions = {})
     defaultLocale: options.defaultLocale,
     defaultMessage: options.defaultMessage,
     defaultMessages: options.defaultMessages,
+    i18n: options.i18n,
     locales: options.locales,
   };
 

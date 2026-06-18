@@ -11,6 +11,12 @@ import type {
   PublicMaintenanceState,
 } from "./types";
 import { DEFAULT_MESSAGE, PLUGIN_ID } from "./shared";
+import {
+  localizedMaintenanceMessage,
+  localizedString,
+  maintenanceMessage,
+  type MaintenanceI18nConfig,
+} from "./i18n";
 
 export { DEFAULT_MESSAGE, PACKAGE_NAME, PLUGIN_ID, PLUGIN_VERSION, pluginRoute } from "./shared";
 
@@ -19,11 +25,6 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_LOCALE_LENGTH = 40;
 const MAX_LOCALE_MESSAGES = 64;
 const LOCALE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const ENABLE_MAINTENANCE_LABEL = "Enable maintenance mode";
-const DISABLE_MAINTENANCE_LABEL = "Disable maintenance mode";
-const ENABLE_MAINTENANCE_CONFIRM = "Put the public site into maintenance mode?";
-const DISABLE_MAINTENANCE_CONFIRM = "Bring the public site back online?";
-
 type MaintenanceStateContext = Pick<RouteContext, "kv"> & Partial<Pick<RouteContext, "site">>;
 
 export interface MaintenanceRouteOptions {
@@ -31,6 +32,7 @@ export interface MaintenanceRouteOptions {
   defaultMessages?: LocalizedMaintenanceMessages;
   defaultLocale?: string;
   locales?: string[];
+  i18n?: MaintenanceI18nConfig;
 }
 
 export async function statusRoute(
@@ -75,7 +77,7 @@ export async function toggleRoute(
     options,
   );
 
-  return actionResult(state);
+  return actionResult(state, routeI18n(ctx, options));
 }
 
 export async function enableRoute(
@@ -96,7 +98,7 @@ export async function enableRoute(
     options,
   );
 
-  return actionResult(state);
+  return actionResult(state, routeI18n(ctx, options));
 }
 
 export async function disableRoute(
@@ -117,7 +119,7 @@ export async function disableRoute(
     options,
   );
 
-  return actionResult(state);
+  return actionResult(state, routeI18n(ctx, options));
 }
 
 export async function actionsManifestRoute(
@@ -125,7 +127,7 @@ export async function actionsManifestRoute(
   options: MaintenanceRouteOptions = {},
 ): Promise<MaintenanceActionsManifest> {
   const state = await readMaintenanceState(ctx, options);
-  const toggle = maintenanceToggleAction(state);
+  const toggle = maintenanceToggleAction(state, routeI18n(ctx, options));
 
   return {
     actions: [maintenanceToggleDescriptor(toggle)],
@@ -168,16 +170,22 @@ export function publicState(
   };
 }
 
-export function actionResult(state: MaintenanceState): MaintenanceActionResult {
-  const message = state.enabled ? "Maintenance mode enabled." : "Maintenance mode disabled.";
-  const action = maintenanceToggleAction(state);
+export function actionResult(
+  state: MaintenanceState,
+  i18n: MaintenanceI18nConfig = {},
+): MaintenanceActionResult {
+  const message = state.enabled
+    ? maintenanceMessage("enabled", i18n)
+    : maintenanceMessage("disabled", i18n);
+  const action = maintenanceToggleAction(state, i18n);
+  const label = localizedString(action.label, i18n);
 
   return {
     ok: true,
     severity: state.enabled ? "warning" : "success",
     status: 200,
     message,
-    label: action.label,
+    label,
     icon: action.icon,
     action,
     notification: {
@@ -203,19 +211,22 @@ function maintenanceToggleDescriptor(action: MaintenanceActionPatch): Maintenanc
   };
 }
 
-function maintenanceToggleAction(state: Pick<MaintenanceState, "enabled">): MaintenanceActionPatch {
+function maintenanceToggleAction(
+  state: Pick<MaintenanceState, "enabled">,
+  i18n: MaintenanceI18nConfig = {},
+): MaintenanceActionPatch {
   return state.enabled
     ? {
-        label: DISABLE_MAINTENANCE_LABEL,
+        label: localizedMaintenanceMessage("disableLabel", i18n),
         icon: "warning",
         tone: "danger",
-        confirm: DISABLE_MAINTENANCE_CONFIRM,
+        confirm: localizedMaintenanceMessage("disableConfirm", i18n),
       }
     : {
-        label: ENABLE_MAINTENANCE_LABEL,
+        label: localizedMaintenanceMessage("enableLabel", i18n),
         icon: "check",
         tone: "positive",
-        confirm: ENABLE_MAINTENANCE_CONFIRM,
+        confirm: localizedMaintenanceMessage("enableConfirm", i18n),
       };
 }
 
@@ -227,7 +238,7 @@ export function createMaintenanceResponse(
     retryAfterSeconds?: number;
   } = {},
 ): Response {
-  const title = escapeHtml(options.title ?? "Maintenance");
+  const title = escapeHtml(options.title ?? maintenanceMessage("maintenance", undefined));
   const message = escapeHtml(state.message || DEFAULT_MESSAGE);
   const retryAfter = String(options.retryAfterSeconds ?? 300);
   const responseLocale = state.messageLocale ?? state.locale ?? "en";
@@ -330,6 +341,24 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function normalizeOptions(options: MaintenanceRouteOptions | string): MaintenanceRouteOptions {
   return typeof options === "string" ? { defaultMessage: options } : options;
+}
+
+function routeI18n(
+  ctx: Pick<RouteContext, "site">,
+  options: MaintenanceRouteOptions,
+): MaintenanceI18nConfig {
+  const emdashI18n = getI18nConfig();
+  return {
+    defaultLocale:
+      options.i18n?.defaultLocale ??
+      options.defaultLocale ??
+      emdashI18n?.defaultLocale ??
+      ctx.site.locale,
+    fallback: options.i18n?.fallback ?? emdashI18n?.fallback,
+    locale: options.i18n?.locale ?? ctx.site.locale,
+    locales: options.i18n?.locales ?? options.locales ?? emdashI18n?.locales,
+    messages: options.i18n?.messages,
+  };
 }
 
 function normalizeMessages(value: unknown, strict = false): LocalizedMaintenanceMessages {

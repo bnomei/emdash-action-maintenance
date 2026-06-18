@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 - 2026-06-18
+
+- Added EmDash-shaped `i18n` options with `locale`, `defaultLocale`,
+  `locales`, `fallback`, and `messages` for maintenance action copy.
+- Added localized action labels, confirmations, and toggle result messages
+  while preserving the existing localized public maintenance page messages.
+- Exported the default maintenance i18n catalog, message keys, and resolver helpers.
+
 ## 0.3.1 - 2026-06-18
 
 - Bumped plugin metadata for the next maintenance-mode action provider patch release.

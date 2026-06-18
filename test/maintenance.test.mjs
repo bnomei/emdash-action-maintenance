@@ -6,6 +6,8 @@ import {
   createMaintenanceResponse,
   disableRoute,
   enableRoute,
+  localeFallbacks,
+  maintenanceMessage,
   publicState,
   publicStateRoute,
   readMaintenanceState,
@@ -83,6 +85,38 @@ test("route methods require POST for mutations and expose POST action descriptor
   const disableCtx = routeContext({ method: "POST", state: enabled.state });
   const disabled = await disableRoute(disableCtx);
   assert.equal(disabled.state.enabled, false);
+});
+
+test("maintenance action copy follows i18n messages and fallback chains", async () => {
+  const i18n = {
+    locale: "fr-CA",
+    defaultLocale: "en",
+    locales: ["en", "fr", "fr-CA"],
+    fallback: { "fr-CA": "fr", fr: "en" },
+    messages: {
+      fr: {
+        disableConfirm: "Remettre le site en ligne?",
+        disableLabel: "Desactiver le mode maintenance",
+        disabled: "Mode maintenance desactive.",
+        enableConfirm: "Activer le mode maintenance?",
+        enableLabel: "Activer le mode maintenance",
+        enabled: "Mode maintenance active.",
+      },
+    },
+  };
+
+  assert.deepEqual(localeFallbacks(i18n), ["fr-CA", "fr", "en"]);
+  assert.equal(maintenanceMessage("enableLabel", i18n), "Activer le mode maintenance");
+
+  const enabledCtx = routeContext({ method: "POST", input: { enabled: true } });
+  const enabled = await toggleRoute(enabledCtx, { i18n });
+  assert.equal(enabled.message, "Mode maintenance active.");
+  assert.equal(enabled.label, "Desactiver le mode maintenance");
+  assert.equal(enabled.action.label.fr, "Desactiver le mode maintenance");
+
+  const manifest = await actionsManifestRoute(routeContext({ state: enabled.state }), { i18n });
+  assert.equal(manifest.actions[0].label.fr, "Desactiver le mode maintenance");
+  assert.equal(manifest.actions[0].confirm.fr, "Remettre le site en ligne?");
 });
 
 test("public state uses locale fallback chains and falls back on invalid locale values", async () => {

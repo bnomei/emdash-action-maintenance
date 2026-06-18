@@ -1,3 +1,5 @@
+import type { LocalizedString, MaintenanceI18nConfig } from "./i18n";
+
 export type MaintenanceSeverity = "success" | "info" | "warning" | "error";
 export type MaintenanceActionTone = "default" | "positive" | "warning" | "danger" | "info";
 
@@ -41,21 +43,21 @@ export interface MaintenanceActionResult {
 }
 
 export interface MaintenanceActionPatch {
-  label: string;
+  label: LocalizedString;
   icon: string;
   tone: MaintenanceActionTone;
-  confirm: string;
+  confirm: LocalizedString;
 }
 
 export interface MaintenanceActionDescriptor {
   id: string;
-  label: string;
+  label: LocalizedString;
   icon: string;
   tone: MaintenanceActionTone;
   pluginId: string;
   route: string;
   method: "POST";
-  confirm?: string;
+  confirm?: LocalizedString;
   resultMode: "emdash-action-result-v1";
   placement: "dashboard" | "global";
 }
@@ -70,6 +72,7 @@ export interface ActionMaintenanceDescriptorOptions {
   defaultMessages?: LocalizedMaintenanceMessages;
   defaultLocale?: string;
   locales?: string[];
+  i18n?: MaintenanceI18nConfig;
 }
 
 export interface ActionMaintenanceCreatePluginOptions {
@@ -77,4 +80,5 @@ export interface ActionMaintenanceCreatePluginOptions {
   defaultMessages?: LocalizedMaintenanceMessages;
   defaultLocale?: string;
   locales?: string[];
+  i18n?: MaintenanceI18nConfig;
 }
