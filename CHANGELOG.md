@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-06-18
+
+- Bumped plugin metadata for the next maintenance-mode action provider patch release.
+
 ## 0.3.0 - 2026-06-18
 
 - Added CI and npm release workflows with package/type validation.

@@ -1,6 +1,6 @@
 {
   "name": "@bnomei/emdash-action-maintenance",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Maintenance-mode action provider plugin for EmDash.",
   "keywords": [
     "astro",
