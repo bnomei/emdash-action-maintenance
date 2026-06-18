@@ -277,9 +277,10 @@ Available plugin options:
 - `entrypoint`: Native plugin entrypoint. Defaults to `@bnomei/emdash-action-maintenance`.
 
 The public state route only honors request locales from `ctx.input.locale` or
-`?locale=` when they match one of the configured locale keys. Unknown, blank,
-or missing request locales are ignored, so the returned message falls back to
-`defaultLocale` consistently for both input sources.
+`?locale=` when they match a configured locale, an available message locale, or
+an EmDash i18n fallback locale. Unknown, invalid, blank, or missing request
+locales are ignored, so the returned message falls back to `defaultLocale`
+consistently for both input sources.
 
 Available middleware options:
 

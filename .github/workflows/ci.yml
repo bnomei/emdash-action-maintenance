@@ -38,6 +38,9 @@ jobs:
       - name: Run TypeScript
         run: npm run typecheck
 
+      - name: Run tests
+        run: npm test
+
       - name: Validate Viteplus package build
         run: npm run pack:check
 

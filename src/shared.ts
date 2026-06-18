@@ -1,6 +1,6 @@
 export const PACKAGE_NAME = "@bnomei/emdash-action-maintenance";
 export const PLUGIN_ID = "action-maintenance";
-export const PLUGIN_VERSION = "0.2.0";
+export const PLUGIN_VERSION = "0.3.0";
 export const DEFAULT_MESSAGE = "This site is temporarily unavailable. Please check back soon.";
 
 export function pluginRoute(route = "status") {

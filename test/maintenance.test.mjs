@@ -115,7 +115,7 @@ test("public state uses locale fallback chains and falls back on invalid locale 
 
   assert.deepEqual(publicState(state, { defaultLocale: "en", locales: ["en"], locale: "../bad" }), {
     enabled: true,
-    locale: "../bad",
+    locale: null,
     message: "English message",
     messageLocale: "en",
     updatedAt: state.updatedAt,

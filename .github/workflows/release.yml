@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Verify release tag
-        run: node -e "const fs = require('node:fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const tag = process.env.RELEASE_TAG; if (tag !== pkg.version && tag !== `v${pkg.version}`) { console.error(`Release tag ${tag} does not match package version ${pkg.version}`); process.exit(1); }"
+        run: node -e 'const fs = require("node:fs"); const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")); const tag = process.env.RELEASE_TAG; const versionTag = "v" + pkg.version; if (tag !== pkg.version && tag !== versionTag) { console.error("Release tag " + tag + " does not match package version " + pkg.version); process.exit(1); }'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
 
@@ -41,6 +41,9 @@ jobs:
 
       - name: Run TypeScript
         run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
 
       - name: Validate Viteplus package build
         run: npm run pack:check

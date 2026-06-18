@@ -52,7 +52,7 @@ export async function publicStateRoute(
   const config = localeConfig(ctx, options, state);
   return publicState(state, {
     ...config,
-    locale: readRequestLocale(ctx, config.locales),
+    locale: readRequestLocale(ctx, state, config),
   });
 }
 
@@ -157,7 +157,7 @@ export function publicState(
     locales: ["en"],
   },
 ): PublicMaintenanceState {
-  const locale = normalizeRequestedLocale(options.locale ?? null, options.locales);
+  const locale = normalizeRequestedLocale(options.locale ?? null, state, options);
   const selected = selectMessage(state, locale, options.defaultLocale);
   return {
     enabled: state.enabled,
@@ -388,25 +388,74 @@ function localeConfig(
   };
 }
 
-function readRequestLocale(ctx: RouteContext, locales: string[]): string | null {
+function readRequestLocale(
+  ctx: RouteContext,
+  state: MaintenanceState,
+  config: MaintenanceLocaleConfig,
+): string | null {
   const inputLocale = asRecord(ctx.input).locale;
   if (typeof inputLocale === "string") {
-    const locale = normalizeRequestedLocale(inputLocale, locales);
+    const locale = normalizeRequestedLocale(inputLocale, state, config);
     if (locale) return locale;
   }
 
   try {
-    return normalizeRequestedLocale(new URL(ctx.request.url).searchParams.get("locale"), locales);
+    return normalizeRequestedLocale(
+      new URL(ctx.request.url).searchParams.get("locale"),
+      state,
+      config,
+    );
   } catch {
     return null;
   }
 }
 
-function normalizeRequestedLocale(locale: string | null, locales: string[]): string | null {
+function normalizeRequestedLocale(
+  locale: string | null,
+  state: MaintenanceState,
+  options: MaintenanceLocaleConfig,
+): string | null {
   if (typeof locale !== "string") return null;
   const cleanLocale = locale.trim();
-  if (!cleanLocale) return null;
-  return locales.includes(cleanLocale) ? cleanLocale : null;
+  if (!cleanLocale || !isLocaleKey(cleanLocale)) return null;
+
+  const availableLocales = uniqueStrings([...options.locales, ...Object.keys(state.messages)]);
+  if (availableLocales.includes(cleanLocale)) return cleanLocale;
+
+  const configuredFallbacks = new Set(configuredFallbackLocales(cleanLocale));
+  const implicitDefaultLocales = uniqueStrings([
+    options.defaultLocale,
+    getI18nConfig()?.defaultLocale,
+  ]);
+  const fallbackLocales = getFallbackChain(cleanLocale).filter(
+    (candidate) => candidate !== cleanLocale,
+  );
+  return fallbackLocales.some(
+    (candidate) =>
+      availableLocales.includes(candidate) &&
+      (!implicitDefaultLocales.includes(candidate) || configuredFallbacks.has(candidate)),
+  )
+    ? cleanLocale
+    : null;
+}
+
+function configuredFallbackLocales(locale: string): string[] {
+  const fallback = getI18nConfig()?.fallback;
+  if (!fallback) return [];
+
+  const locales: string[] = [];
+  const visited = new Set<string>([locale]);
+  let current = locale;
+
+  while (fallback[current]) {
+    const next = fallback[current];
+    if (!next || visited.has(next)) break;
+    locales.push(next);
+    visited.add(next);
+    current = next;
+  }
+
+  return locales;
 }
 
 function selectMessage(
