@@ -218,11 +218,11 @@ The plugin exposes these routes under `/_emdash/api/plugins/action-maintenance/`
 | `summary`             | Admin  | Alias for `status`, useful for generic action dashboards.            |
 | `enable`              | Admin  | Enable maintenance mode. Accepts `POST` only.                        |
 | `disable`             | Admin  | Disable maintenance mode. Accepts `POST` only.                       |
-| `toggle`              | Admin  | Toggle maintenance mode, optionally with a new message. `POST` only. |
+| `toggle`              | Admin  | Set maintenance mode from an explicit `enabled`, optionally with a new message. `POST` only. |
 | `public-state`        | Public | Read the public state from SSR middleware. Accepts `?locale=fr`.     |
 | `.well-known/actions` | Admin  | Return the state-aware dashboard toggle action descriptor.           |
 
-Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. These payloads are request bodies sent to the plugin routes by dashboard buttons or custom clients:
+Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. The `toggle` route requires an explicit `enabled` boolean when changing state; content-only `message`/`messages` patches preserve the current state. These payloads are request bodies sent to the plugin routes by dashboard buttons or custom clients:
 
 ```ts
 // POST /_emdash/api/plugins/action-maintenance/toggle
@@ -235,9 +235,9 @@ Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. 
 }
 ```
 
-The toggle route returns the persisted state plus the stable action patch consumed by `@bnomei/emdash-actions`. When maintenance mode is disabled, the manifest returns `Enable maintenance mode`; after a successful enable, the response patches the same button to `Disable maintenance mode`. The next successful toggle patches it back.
+The mutation routes return the persisted state plus the stable action patch consumed by `@bnomei/emdash-actions`. When maintenance mode is disabled, the manifest returns `Enable maintenance mode`; after a successful enable, the response patches the same button to `Disable maintenance mode`. The next successful disable patches it back.
 
-The action patch (and the `.well-known/actions` descriptor) carries an absolute `route` — `enable` when maintenance is currently off, `disable` when on — rather than the relative `toggle` route. Because `enable`/`disable` write an absolute target, a retransmitted or concurrent click is idempotent and cannot flip the state the wrong way. The `toggle` route still exists for clients that want relative semantics.
+The action patch (and the `.well-known/actions` descriptor) carries an absolute `route` — `enable` when maintenance is currently off, `disable` when on — rather than the `toggle` route. Because `enable`/`disable` write an absolute target, a retransmitted or concurrent click is idempotent and cannot flip the state the wrong way. The `toggle` route remains available for clients that send an explicit `enabled` target or content-only copy patches.
 
 ```ts
 // Response body from POST /_emdash/api/plugins/action-maintenance/enable

@@ -65,10 +65,16 @@ export async function toggleRoute(
   assertPost(ctx);
   const current = await readStoredState(ctx);
   const input = asRecord(ctx.input);
-  // A bare toggle (no content fields) flips `enabled`; a message-only patch
-  // preserves the current state so editing copy never changes maintenance mode.
+  // Content-only patches preserve the current state so editing copy never
+  // changes maintenance mode. State changes must carry an explicit target; a
+  // bare relative flip is not retry-safe across HTTP retransmission.
   const isContentPatch = Object.hasOwn(input, "message") || Object.hasOwn(input, "messages");
-  const enabled = readEnabledInput(input, isContentPatch ? current.enabled : !current.enabled);
+  if (!isContentPatch && !Object.hasOwn(input, "enabled")) {
+    throw PluginRouteError.badRequest(
+      "toggle requires an explicit enabled boolean; use enable or disable for state changes",
+    );
+  }
+  const enabled = readEnabledInput(input, current.enabled);
   const content = readContentInput(input, current, resolveDefaultLocale(options, ctx.site?.locale));
   const state = await writeMaintenanceState(
     ctx,

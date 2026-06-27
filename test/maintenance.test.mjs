@@ -147,8 +147,8 @@ test("partial messages POST merges with stored locales instead of replacing them
 });
 
 test("configured defaults are not baked into KV and later config changes take effect", async () => {
-  const ctx = routeContext({ method: "POST", input: {} }); // bare default-only toggle
-  await toggleRoute(ctx, {
+  const ctx = routeContext({ method: "POST", input: {} }); // default-only enable
+  await enableRoute(ctx, {
     defaultLocale: "en",
     defaultMessages: { en: "English default", fr: "A" },
     locales: ["en", "fr"],
@@ -201,7 +201,7 @@ test("scalar message update is mirrored into messages[defaultLocale] for public 
   assert.equal(explicit.state.messages.en, "Explicit EN");
 });
 
-test("toggle preserves enabled for message-only patches but flips on bare toggle", async () => {
+test("toggle preserves enabled for message-only patches and requires explicit state targets", async () => {
   const state = {
     enabled: true,
     message: "Base",
@@ -227,9 +227,30 @@ test("toggle preserves enabled for message-only patches but flips on bare toggle
   });
   assert.equal((await toggleRoute(messageCtx)).state.enabled, true);
 
-  // bare toggle (no content fields) still flips enabled
+  // bare toggle (no content fields) is rejected because a relative flip is not retry-safe
   const bareCtx = routeContext({ method: "POST", input: {}, state });
-  assert.equal((await toggleRoute(bareCtx)).state.enabled, false);
+  await assert.rejects(() => toggleRoute(bareCtx), /explicit enabled boolean/);
+
+  // explicit targets are retry-safe: two deliveries of the same logical request
+  // still land on the requested final state.
+  const sharedKv = routeContext({
+    state: { enabled: false, message: "Base", messages: {}, updatedAt: null },
+  }).kv;
+  const targetA = {
+    input: { enabled: true },
+    kv: sharedKv,
+    request: new Request("https://x/", { method: "POST" }),
+    site: { locale: "en" },
+  };
+  const targetB = {
+    input: { enabled: true },
+    kv: sharedKv,
+    request: new Request("https://x/", { method: "POST" }),
+    site: { locale: "en" },
+  };
+  await toggleRoute(targetA);
+  await toggleRoute(targetB);
+  assert.equal(sharedKv.store.get("state:maintenance").enabled, true);
 });
 
 test("maintenance action copy follows i18n messages and fallback chains", async () => {
