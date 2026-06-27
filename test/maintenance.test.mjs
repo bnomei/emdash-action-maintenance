@@ -337,3 +337,41 @@ test("middleware serves maintenance response and bypasses static template path",
   assert.equal(response.status, 503);
   assert.match(await response.text(), /Wartung/);
 });
+
+test("middleware fails open by default but fails closed when configured", async () => {
+  const failingLocals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        return { success: false, error: "kv timeout" };
+      },
+    },
+  };
+  const invalidLocals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        return { success: true, data: { enabled: "true", message: "Down" } };
+      },
+    },
+  };
+
+  // default: fail open on read failure and on invalid shape
+  for (const locals of [failingLocals, invalidLocals]) {
+    const mw = createMaintenanceMiddleware();
+    const res = await mw(
+      { request: new Request("https://example.test/page"), locals },
+      () => new Response("next"),
+    );
+    assert.equal(await res.text(), "next");
+  }
+
+  // failClosed: serve 503 on read failure, invalid shape, and missing handler
+  for (const locals of [failingLocals, invalidLocals, {}]) {
+    const mw = createMaintenanceMiddleware({ failClosed: true });
+    const res = await mw(
+      { request: new Request("https://example.test/page"), locals },
+      () => new Response("next"),
+    );
+    assert.equal(res.status, 503);
+    assert.match(await res.text(), /temporarily unavailable/i);
+  }
+});

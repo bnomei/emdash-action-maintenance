@@ -33,6 +33,14 @@ export interface MaintenanceMiddlewareResponseOptions {
 
 export interface MaintenanceMiddlewareOptions {
   bypass?: (context: MaintenanceMiddlewareContext, url: URL) => boolean | Promise<boolean>;
+  /**
+   * When the public-state read fails (missing handler, unsuccessful fetch, or
+   * an invalid payload shape) the middleware cannot tell whether maintenance is
+   * enabled. By default it fails open and calls `next()`, keeping the site
+   * online. Set `failClosed` to serve the maintenance response instead, so a
+   * transient backend error during an outage does not reopen the public site.
+   */
+  failClosed?: boolean;
   locale?: string | ((context: MaintenanceMiddlewareContext) => string | null | undefined);
   render?: (
     state: PublicMaintenanceState,
@@ -66,13 +74,14 @@ export async function handleMaintenanceMode(
     return next();
   }
 
+  const locale = resolveLocale(context, options);
+
   const handlePublicRoute = getPublicPluginApiRouteHandler(
     context.locals as PublicPluginRuntimeLocals | null | undefined,
   );
-  if (!handlePublicRoute) return next();
+  if (!handlePublicRoute) return onStateUnavailable(context, next, options, locale);
 
   const stateUrl = new URL(context.request.url);
-  const locale = resolveLocale(context, options);
   if (locale) stateUrl.searchParams.set("locale", locale);
 
   const stateRequest = new Request(stateUrl, {
@@ -83,10 +92,39 @@ export async function handleMaintenanceMode(
   const result = await handlePublicRoute(PLUGIN_ID, "GET", "/public-state", stateRequest);
   const state = isPublicMaintenanceState(result.data) ? result.data : null;
 
-  if (!result.success || !state?.enabled) return next();
+  // Distinguish a successful "disabled" read from a failed/invalid read: the
+  // former is fail-open by design, the latter honors the `failClosed` policy.
+  if (!result.success || !state) return onStateUnavailable(context, next, options, locale);
+
+  if (!state.enabled) return next();
 
   setMaintenanceLocal(context, state);
+  return serveMaintenance(state, context, options);
+}
 
+function onStateUnavailable(
+  context: MaintenanceMiddlewareContext,
+  next: MaintenanceMiddlewareNext,
+  options: MaintenanceMiddlewareOptions,
+  locale: string | null,
+): Response | Promise<Response> {
+  if (!options.failClosed) return next();
+  const state: PublicMaintenanceState = {
+    enabled: true,
+    locale,
+    message: "",
+    messageLocale: null,
+    updatedAt: null,
+  };
+  setMaintenanceLocal(context, state);
+  return serveMaintenance(state, context, options);
+}
+
+async function serveMaintenance(
+  state: PublicMaintenanceState,
+  context: MaintenanceMiddlewareContext,
+  options: MaintenanceMiddlewareOptions,
+): Promise<Response> {
   if (options.render) return options.render(state, context);
 
   const template = await resolveTemplate(options.template, state, context);

@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/middleware.ts:86 | middleware-fail-open
 
 # Middleware fail-open when public-state fetch fails or returns invalid shape
@@ -51,6 +51,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-25: open by Devana. Initial report written from static source inspection.
+- 2026-06-27: fixed. Product policy chosen (by maintainer): configurable, default fail-open. Added `failClosed?: boolean` middleware option. The single merged guard was split: a successful "disabled" read still fails open by design, while a failed/invalid read (missing handler, `result.success === false`, or shape validation failure) now routes through `onStateUnavailable`, which honors `failClosed` — serving the maintenance response (built from a synthetic enabled state; empty message falls back to `DEFAULT_MESSAGE`) when set, otherwise `next()`. Default behavior is unchanged and now documented in README "Available middleware options". Refactored maintenance-serving into a shared `serveMaintenance` helper. Added test "middleware fails open by default but fails closed when configured" covering read failure, invalid shape, and missing handler. Suite green (17 passing), typecheck clean.
 
 DEVANA-KEY: src/middleware.ts:86 | middleware-fail-open
-DEVANA-SUMMARY: open | P2 | medium | Public-state fetch failures and invalid payloads call `next()`, keeping the site online while KV maintenance may still be enabled.
+DEVANA-SUMMARY: fixed | P2 | medium | Public-state fetch failures and invalid payloads call `next()`, keeping the site online while KV maintenance may still be enabled.
