@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/middleware.ts:108 | template-trailing-slash
 
 # Template bypass uses exact pathname match, missing trailing-slash variants
@@ -49,6 +49,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-25: open by Devana. Initial report written from static source inspection.
+- 2026-06-27: fixed. `matchesStaticTemplatePath` (extracted from the former `shouldBypassDefault` in the report-4 fix) now compares `normalizePath(url.pathname) === normalizePath(templatePath)`, where `normalizePath` strips trailing slashes for non-root paths. So `template: "/maintenance"` matches a canonical `/maintenance/` request under Astro `trailingSlash: "always"` and vice versa. Added test "template bypass matches trailing-slash path variants". Suite green (19 passing), typecheck clean.
 
 DEVANA-KEY: src/middleware.ts:108 | template-trailing-slash
-DEVANA-SUMMARY: open | P2 | medium | Strict `url.pathname === templatePath` bypass misses trailing-slash variants like `/maintenance/`, breaking custom template rendering.
+DEVANA-SUMMARY: fixed | P2 | medium | Strict `url.pathname === templatePath` bypass misses trailing-slash variants like `/maintenance/`, breaking custom template rendering.

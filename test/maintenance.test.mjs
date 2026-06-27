@@ -381,6 +381,34 @@ test("template path bypass still populates locals.maintenance with fresh state",
   assert.equal(disabledLocals.maintenance.message, "Online");
 });
 
+test("template bypass matches trailing-slash path variants", async () => {
+  const middleware = createMaintenanceMiddleware({ template: "/maintenance" });
+  const locals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        return {
+          success: true,
+          data: {
+            enabled: true,
+            locale: "en",
+            message: "Down",
+            messageLocale: "en",
+            updatedAt: null,
+          },
+        };
+      },
+    },
+  };
+
+  // canonical trailing-slash URL still delegates to the custom template page
+  const response = await middleware(
+    { request: new Request("https://example.test/maintenance/"), locals },
+    () => new Response("template"),
+  );
+  assert.equal(await response.text(), "template");
+  assert.equal(locals.maintenance.enabled, true);
+});
+
 test("middleware fails open by default but fails closed when configured", async () => {
   const failingLocals = {
     emdash: {

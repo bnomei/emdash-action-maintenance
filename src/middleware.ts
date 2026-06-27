@@ -163,7 +163,13 @@ function shouldBypassStatic(url: URL) {
 
 function matchesStaticTemplatePath(template: MaintenanceMiddlewareTemplate | undefined, url: URL) {
   const templatePath = staticTemplatePath(template, url);
-  return templatePath ? url.pathname === templatePath : false;
+  // Compare trailing-slash-insensitively so `/maintenance` matches the canonical
+  // `/maintenance/` emitted under Astro `trailingSlash: "always"` and vice versa.
+  return templatePath ? normalizePath(url.pathname) === normalizePath(templatePath) : false;
+}
+
+function normalizePath(pathname: string) {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
 }
 
 function staticTemplatePath(template: MaintenanceMiddlewareTemplate | undefined, url: URL) {
