@@ -260,7 +260,7 @@ export function createMaintenanceResponse(
 ): Response {
   const title = escapeHtml(options.title ?? maintenanceMessage("maintenance", undefined));
   const message = escapeHtml(state.message || DEFAULT_MESSAGE);
-  const retryAfter = String(options.retryAfterSeconds ?? 300);
+  const retryAfter = String(normalizeRetryAfter(options.retryAfterSeconds));
   const responseLocale = state.messageLocale ?? state.locale ?? "en";
   const lang = escapeHtml(responseLocale);
   const html = `<!doctype html>
@@ -304,6 +304,14 @@ function normalizeResponseStatus(status: number | undefined): number {
   return typeof status === "number" && Number.isInteger(status) && status >= 200 && status <= 599
     ? status
     : 503;
+}
+
+// RFC 7231 §7.1.3 requires Retry-After to be a non-negative integer of seconds.
+// Coerce a non-integer/negative/NaN value back to the 300s default so clients
+// (crawlers, CDNs, monitors) get a parseable retry hint instead of garbage.
+function normalizeRetryAfter(seconds: number | undefined): number {
+  const truncated = Math.trunc(seconds ?? 300);
+  return Number.isFinite(truncated) && truncated >= 0 ? truncated : 300;
 }
 
 // Validate a KV record (or write payload) down to admin-authored content only.

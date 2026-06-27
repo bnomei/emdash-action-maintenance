@@ -343,6 +343,35 @@ test("maintenance response escapes HTML in title, language, and message", async 
   assert.doesNotMatch(html, /<script>alert/);
 });
 
+test("Retry-After header is coerced to a non-negative integer", () => {
+  const state = {
+    enabled: true,
+    locale: "en",
+    message: "Down",
+    messageLocale: "en",
+    updatedAt: null,
+  };
+
+  for (const value of [NaN, -5, Infinity, -Infinity]) {
+    const response = createMaintenanceResponse(state, { retryAfterSeconds: value });
+    assert.equal(response.headers.get("Retry-After"), "300");
+  }
+
+  // fractional values are truncated to an integer; valid integers pass through
+  assert.equal(
+    createMaintenanceResponse(state, { retryAfterSeconds: 1.5 }).headers.get("Retry-After"),
+    "1",
+  );
+  assert.equal(
+    createMaintenanceResponse(state, { retryAfterSeconds: 0 }).headers.get("Retry-After"),
+    "0",
+  );
+  assert.equal(
+    createMaintenanceResponse(state, { retryAfterSeconds: 120 }).headers.get("Retry-After"),
+    "120",
+  );
+});
+
 test("maintenance response falls back to 503 for out-of-range or invalid status", () => {
   const state = {
     enabled: true,

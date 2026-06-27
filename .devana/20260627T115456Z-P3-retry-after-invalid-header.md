@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P3 | medium | security=no
+DEVANA-STATE: fixed | P3 | medium | security=no
 DEVANA-KEY: src/data.ts:243 | retry-after-invalid-header
 
 # Non-integer/negative/NaN `retryAfterSeconds` emits an invalid `Retry-After` header
@@ -51,6 +51,7 @@ Preserve the original finding body. Update line 2 `DEVANA-STATE:` and the final 
 ## Status Notes
 
 - 2026-06-27: open by Devana. Static inspection via boundaries-oracles trail. Sibling to `response-status-range-crash` but distinct mechanism (silent bad header vs crash).
+- 2026-06-27: fixed. Added `normalizeRetryAfter(seconds)` = `Math.trunc(seconds ?? 300)` then fall back to 300 unless `Number.isFinite && >= 0`. `createMaintenanceResponse` now stringifies the normalized value into the `Retry-After` header, so `NaN`/`-5`/`Infinity` become `300` and fractional values are truncated to integer seconds (RFC 7231 §7.1.3 `delta-seconds`). Valid integers (incl. 0) pass through. Added test "Retry-After header is coerced to a non-negative integer". Suite green (27 passing), typecheck clean.
 
 DEVANA-KEY: src/data.ts:243 | retry-after-invalid-header
-DEVANA-SUMMARY: open | P3 | medium | A non-integer/negative/NaN `retryAfterSeconds` is stringified straight into the `Retry-After` header, producing an RFC-invalid value that clients silently ignore.
+DEVANA-SUMMARY: fixed | P3 | medium | A non-integer/negative/NaN `retryAfterSeconds` is stringified straight into the `Retry-After` header, producing an RFC-invalid value that clients silently ignore.
