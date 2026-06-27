@@ -338,6 +338,49 @@ test("middleware serves maintenance response and bypasses static template path",
   assert.match(await response.text(), /Wartung/);
 });
 
+test("template path bypass still populates locals.maintenance with fresh state", async () => {
+  const middleware = createMaintenanceMiddleware({ template: "/maintenance" });
+
+  function localsFor(enabled) {
+    return {
+      emdash: {
+        handlePublicPluginApiRoute(pluginId, method, path) {
+          assert.equal(path, "/public-state");
+          return {
+            success: true,
+            data: {
+              enabled,
+              locale: "de",
+              message: enabled ? "Wartung" : "Online",
+              messageLocale: "de",
+              updatedAt: null,
+            },
+          };
+        },
+      },
+    };
+  }
+
+  // direct visit to the template route renders the page (next) but locals are set
+  const enabledLocals = localsFor(true);
+  const direct = await middleware(
+    { request: new Request("https://example.test/maintenance"), currentLocale: "de", locals: enabledLocals },
+    () => new Response("template"),
+  );
+  assert.equal(await direct.text(), "template");
+  assert.equal(enabledLocals.maintenance.enabled, true);
+  assert.equal(enabledLocals.maintenance.message, "Wartung");
+
+  // a visit after maintenance was disabled refreshes locals (not stale)
+  const disabledLocals = localsFor(false);
+  await middleware(
+    { request: new Request("https://example.test/maintenance"), currentLocale: "de", locals: disabledLocals },
+    () => new Response("template"),
+  );
+  assert.equal(disabledLocals.maintenance.enabled, false);
+  assert.equal(disabledLocals.maintenance.message, "Online");
+});
+
 test("middleware fails open by default but fails closed when configured", async () => {
   const failingLocals = {
     emdash: {

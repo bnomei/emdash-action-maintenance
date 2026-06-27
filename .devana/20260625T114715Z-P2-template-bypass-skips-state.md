@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/middleware.ts:65 | template-bypass-skips-state
 
 # Template path bypass skips public-state fetch, leaving `locals.maintenance` unset or stale
@@ -58,6 +58,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-25: open by Devana. Initial report written from static source inspection.
+- 2026-06-27: fixed. Split the merged bypass: `shouldBypassStatic` now only short-circuits assets/`/_emdash`/`/_astro`/well-known paths (no state needed). The static template path is handled separately via `matchesStaticTemplatePath`: such requests now fetch public state and call `setMaintenanceLocal` with the current read (even when disabled) before returning `next()`, so direct template visits get populated `locals.maintenance` and a rewrite pass-two refreshes rather than reusing a stale snapshot. Template path renders itself (never the built-in response) to avoid a rewrite loop; on read failure the template path falls back to `next()` (no `failClosed` recursion). Added test "template path bypass still populates locals.maintenance with fresh state". Suite green (18 passing), typecheck clean.
 
 DEVANA-KEY: src/middleware.ts:65 | template-bypass-skips-state
-DEVANA-SUMMARY: open | P2 | medium | Template path bypass returns `next()` before fetching public state, so `locals.maintenance` is missing on direct template visits and can be stale on rewrite pass-two.
+DEVANA-SUMMARY: fixed | P2 | medium | Template path bypass returns `next()` before fetching public state, so `locals.maintenance` is missing on direct template visits and can be stale on rewrite pass-two.

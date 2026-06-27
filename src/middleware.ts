@@ -70,16 +70,24 @@ export async function handleMaintenanceMode(
 ): Promise<Response> {
   const url = context.url ?? new URL(context.request.url);
 
-  if (shouldBypassDefault(url, options.template) || (await options.bypass?.(context, url))) {
+  if (shouldBypassStatic(url) || (await options.bypass?.(context, url))) {
     return next();
   }
+
+  // A request that already landed on the static template route still needs the
+  // public state populated on `locals.maintenance` so the Astro page can render
+  // the persisted copy — but it must render the page itself (next()), never the
+  // built-in response, to avoid a rewrite loop back to the same path.
+  const isTemplatePath = matchesStaticTemplatePath(options.template, url);
 
   const locale = resolveLocale(context, options);
 
   const handlePublicRoute = getPublicPluginApiRouteHandler(
     context.locals as PublicPluginRuntimeLocals | null | undefined,
   );
-  if (!handlePublicRoute) return onStateUnavailable(context, next, options, locale);
+  if (!handlePublicRoute) {
+    return isTemplatePath ? next() : onStateUnavailable(context, next, options, locale);
+  }
 
   const stateUrl = new URL(context.request.url);
   if (locale) stateUrl.searchParams.set("locale", locale);
@@ -94,7 +102,17 @@ export async function handleMaintenanceMode(
 
   // Distinguish a successful "disabled" read from a failed/invalid read: the
   // former is fail-open by design, the latter honors the `failClosed` policy.
-  if (!result.success || !state) return onStateUnavailable(context, next, options, locale);
+  if (!result.success || !state) {
+    return isTemplatePath ? next() : onStateUnavailable(context, next, options, locale);
+  }
+
+  // On the template path, always refresh locals from the current read (even when
+  // disabled) so a direct visit gets fresh state and a stale rewrite pass-two
+  // cannot leave an old snapshot behind. The page renders itself.
+  if (isTemplatePath) {
+    setMaintenanceLocal(context, state);
+    return next();
+  }
 
   if (!state.enabled) return next();
 
@@ -138,10 +156,12 @@ async function serveMaintenance(
   return createMaintenanceResponse(state, responseOptions);
 }
 
-function shouldBypassDefault(url: URL, template?: MaintenanceMiddlewareTemplate) {
+function shouldBypassStatic(url: URL) {
   if (DEFAULT_BYPASS_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return true;
-  if (DEFAULT_BYPASS_PATHS.includes(url.pathname)) return true;
+  return DEFAULT_BYPASS_PATHS.includes(url.pathname);
+}
 
+function matchesStaticTemplatePath(template: MaintenanceMiddlewareTemplate | undefined, url: URL) {
   const templatePath = staticTemplatePath(template, url);
   return templatePath ? url.pathname === templatePath : false;
 }
