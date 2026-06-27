@@ -287,9 +287,18 @@ export function createMaintenanceResponse(
   headers.set("Content-Language", responseLocale);
 
   return new Response(html, {
-    status: options.status ?? 503,
+    // The Response constructor throws a RangeError for a status outside
+    // [200, 599] (or a non-integer), which would turn a configured/computed
+    // maintenance status into an unhandled 500. Fall back to 503 instead.
+    status: normalizeResponseStatus(options.status),
     headers,
   });
+}
+
+function normalizeResponseStatus(status: number | undefined): number {
+  return typeof status === "number" && Number.isInteger(status) && status >= 200 && status <= 599
+    ? status
+    : 503;
 }
 
 // Validate a KV record (or write payload) down to admin-authored content only.

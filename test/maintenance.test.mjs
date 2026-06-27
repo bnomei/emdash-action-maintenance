@@ -318,6 +318,25 @@ test("maintenance response escapes HTML in title, language, and message", async 
   assert.doesNotMatch(html, /<script>alert/);
 });
 
+test("maintenance response falls back to 503 for out-of-range or invalid status", () => {
+  const state = {
+    enabled: true,
+    locale: "en",
+    message: "Down",
+    messageLocale: "en",
+    updatedAt: null,
+  };
+
+  for (const status of [600, 0, 199, 1000, -1, 503.5, NaN]) {
+    const response = createMaintenanceResponse(state, { status });
+    assert.equal(response.status, 503);
+  }
+
+  // a valid in-range status is still honored
+  assert.equal(createMaintenanceResponse(state, { status: 200 }).status, 200);
+  assert.equal(createMaintenanceResponse(state, { status: 429 }).status, 429);
+});
+
 test("middleware bypasses default asset and API paths before fetching public state", async () => {
   const middleware = createMaintenanceMiddleware();
   const calls = [];

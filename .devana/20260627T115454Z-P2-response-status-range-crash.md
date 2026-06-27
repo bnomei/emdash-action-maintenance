@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/data.ts:274 | response-status-range-crash
 
 # Out-of-range `response.status` throws RangeError, turning the maintenance page into a 500
@@ -58,6 +58,7 @@ Preserve the original finding body. Update line 2 `DEVANA-STATE:` and the final 
 ## Status Notes
 
 - 2026-06-27: open by Devana. Static inspection via boundaries-oracles trail. Reachability confirmed through middleware `options.response` passthrough.
+- 2026-06-27: fixed. Added `normalizeResponseStatus(status)` guard (`Number.isInteger(status) && status >= 200 && status <= 599`) applied to `options.status` before the `Response` constructor in `createMaintenanceResponse`. An out-of-range or non-integer status now falls back to 503 instead of throwing a `RangeError` that would surface as an unhandled 500. Valid in-range statuses are still honored. Added test "maintenance response falls back to 503 for out-of-range or invalid status" covering 600/0/199/1000/-1/503.5/NaN → 503 and 200/429 honored. Suite green (25 passing), typecheck clean.
 
 DEVANA-KEY: src/data.ts:274 | response-status-range-crash
-DEVANA-SUMMARY: open | P2 | medium | A caller-supplied `response.status` outside 200–599 makes the `Response` constructor throw `RangeError`, replacing the maintenance page with an unhandled 500.
+DEVANA-SUMMARY: fixed | P2 | medium | A caller-supplied `response.status` outside 200–599 makes the `Response` constructor throw `RangeError`, replacing the maintenance page with an unhandled 500.
