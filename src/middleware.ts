@@ -68,6 +68,38 @@ export async function handleMaintenanceMode(
   next: MaintenanceMiddlewareNext,
   options: MaintenanceMiddlewareOptions = {},
 ): Promise<Response> {
+  try {
+    return await runMaintenanceMode(context, next, options);
+  } catch {
+    // The middleware fails open for all of its own error sources (missing
+    // handler, failed/invalid state read). Preserve that contract for throwing
+    // caller callbacks (bypass/locale/render/template/response) too, so a buggy
+    // callback can never break the public pipeline with a 500 — most importantly
+    // for `bypass`/`locale`, which run before the enabled gate. When
+    // `failClosed` is set, serve the built-in maintenance response WITHOUT
+    // re-invoking the (possibly throwing) callbacks.
+    if (!options.failClosed) return next();
+    const locale = safeResolveLocale(context, options);
+    const state: PublicMaintenanceState = {
+      enabled: true,
+      locale,
+      message: "",
+      messageLocale: null,
+      updatedAt: null,
+    };
+    setMaintenanceLocal(context, state);
+    return createMaintenanceResponse(
+      state,
+      typeof options.response === "function" ? undefined : options.response,
+    );
+  }
+}
+
+async function runMaintenanceMode(
+  context: MaintenanceMiddlewareContext,
+  next: MaintenanceMiddlewareNext,
+  options: MaintenanceMiddlewareOptions = {},
+): Promise<Response> {
   const url = context.url ?? new URL(context.request.url);
 
   if (shouldBypassStatic(url) || (await options.bypass?.(context, url))) {
@@ -206,6 +238,19 @@ function resolveLocale(
 ) {
   if (typeof options.locale === "function") return options.locale(context) ?? null;
   return options.locale ?? context.currentLocale ?? null;
+}
+
+// Resolve the locale for the fail-closed catch path without letting a throwing
+// `locale` callback escape (it is what may have triggered the catch).
+function safeResolveLocale(
+  context: MaintenanceMiddlewareContext,
+  options: MaintenanceMiddlewareOptions,
+): string | null {
+  try {
+    return resolveLocale(context, options);
+  } catch {
+    return null;
+  }
 }
 
 async function resolveTemplate(

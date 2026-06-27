@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P3 | medium | security=no
+DEVANA-STATE: fixed | P3 | medium | security=no
 DEVANA-KEY: src/middleware.ts:75 | callback-throw-breaks-pipeline
 
 # A throwing `locale`/`bypass` callback 500s every request — even when maintenance is OFF
@@ -53,6 +53,7 @@ Preserve the original finding body. Update line 2 `DEVANA-STATE:` and the final 
 ## Status Notes
 
 - 2026-06-27: open by Devana. Static inspection via contracts-errors trail. Distinct from `middleware-fail-open` (:86), which is about fetch failure / invalid payload calling `next()`; this is about caller callbacks failing *closed* (500), asymmetrically.
+- 2026-06-27: fixed. Extracted the handler body into `runMaintenanceMode` and wrapped it in `handleMaintenanceMode` with a try/catch that preserves the fail-open contract for throwing caller callbacks (`bypass`/`locale`/`render`/`template`/`response`) — most importantly the pre-gate `bypass`/`locale`, which previously 500'd every request even with maintenance off. On a callback throw it falls open to `next()` by default; when `failClosed` is set it serves the built-in `createMaintenanceResponse` WITHOUT re-invoking the (possibly throwing) callbacks (locale resolved via `safeResolveLocale`, and a function `response` is skipped to avoid re-throwing). Added test "throwing locale/bypass callbacks fail open instead of 500ing the pipeline" (throwing `locale` and `bypass` → `next()`; with `failClosed` → 503). Suite green (28 passing), typecheck clean.
 
 DEVANA-KEY: src/middleware.ts:75 | callback-throw-breaks-pipeline
-DEVANA-SUMMARY: open | P3 | medium | Unguarded `bypass`/`locale` callbacks run before the enabled gate, so a throwing callback 500s every public request even when maintenance is off, contradicting the middleware's fail-open contract.
+DEVANA-SUMMARY: fixed | P3 | medium | Unguarded `bypass`/`locale` callbacks run before the enabled gate, so a throwing callback 500s every public request even when maintenance is off, contradicting the middleware's fail-open contract.

@@ -635,6 +635,60 @@ test("template bypass matches trailing-slash path variants", async () => {
   assert.equal(locals.maintenance.enabled, true);
 });
 
+test("throwing locale/bypass callbacks fail open instead of 500ing the pipeline", async () => {
+  const locals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        // even if reached, maintenance is OFF here
+        return {
+          success: true,
+          data: {
+            enabled: false,
+            locale: null,
+            message: "",
+            messageLocale: null,
+            updatedAt: null,
+          },
+        };
+      },
+    },
+  };
+
+  const throwingLocale = createMaintenanceMiddleware({
+    locale: (ctx) => ctx.currentLocale.split("-")[0], // throws when currentLocale is undefined
+  });
+  const localeRes = await throwingLocale(
+    { request: new Request("https://example.test/page"), locals },
+    () => new Response("next"),
+  );
+  assert.equal(await localeRes.text(), "next");
+
+  const throwingBypass = createMaintenanceMiddleware({
+    bypass: () => {
+      throw new Error("boom");
+    },
+  });
+  const bypassRes = await throwingBypass(
+    { request: new Request("https://example.test/page"), locals },
+    () => new Response("next"),
+  );
+  assert.equal(await bypassRes.text(), "next");
+
+  // with failClosed, a throwing callback serves the built-in maintenance response
+  const failClosed = createMaintenanceMiddleware({
+    failClosed: true,
+    bypass: () => {
+      throw new Error("boom");
+    },
+  });
+  const closedRes = await failClosed(
+    { request: new Request("https://example.test/page"), locals },
+    () => new Response("next"),
+  );
+  assert.equal(closedRes.status, 503);
+  assert.match(await closedRes.text(), /temporarily unavailable/i);
+});
+
 test("middleware fails open by default but fails closed when configured", async () => {
   const failingLocals = {
     emdash: {
