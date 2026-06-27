@@ -121,6 +121,37 @@ test("partial messages POST merges with stored locales instead of replacing them
   });
 });
 
+test("toggle preserves enabled for message-only patches but flips on bare toggle", async () => {
+  const state = {
+    enabled: true,
+    message: "Base",
+    messages: { en: "Down for maintenance", de: "Wartung" },
+    updatedAt: "2026-06-17T00:00:00.000Z",
+  };
+
+  // messages-only patch must not change enabled
+  const patchCtx = routeContext({
+    method: "POST",
+    input: { messages: { de: "Wir sind gleich zurück" } },
+    state,
+  });
+  const patched = await toggleRoute(patchCtx);
+  assert.equal(patched.state.enabled, true);
+  assert.equal(patched.state.messages.de, "Wir sind gleich zurück");
+
+  // message-only patch must not change enabled
+  const messageCtx = routeContext({
+    method: "POST",
+    input: { message: "Neue Nachricht" },
+    state,
+  });
+  assert.equal((await toggleRoute(messageCtx)).state.enabled, true);
+
+  // bare toggle (no content fields) still flips enabled
+  const bareCtx = routeContext({ method: "POST", input: {}, state });
+  assert.equal((await toggleRoute(bareCtx)).state.enabled, false);
+});
+
 test("maintenance action copy follows i18n messages and fallback chains", async () => {
   const i18n = {
     locale: "fr-CA",

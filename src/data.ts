@@ -65,7 +65,10 @@ export async function toggleRoute(
   assertPost(ctx);
   const current = await readMaintenanceState(ctx, options);
   const input = asRecord(ctx.input);
-  const enabled = readEnabledInput(input, !current.enabled);
+  // A bare toggle (no content fields) flips `enabled`; a message-only patch
+  // preserves the current state so editing copy never changes maintenance mode.
+  const isContentPatch = Object.hasOwn(input, "message") || Object.hasOwn(input, "messages");
+  const enabled = readEnabledInput(input, isContentPatch ? current.enabled : !current.enabled);
   const state = await writeMaintenanceState(
     ctx,
     {
