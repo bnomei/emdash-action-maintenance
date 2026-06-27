@@ -121,6 +121,30 @@ test("partial messages POST merges with stored locales instead of replacing them
   });
 });
 
+test("scalar message update is mirrored into messages[defaultLocale] for public copy", async () => {
+  const options = { defaultLocale: "en", defaultMessages: { en: "Plugin default EN" }, locales: ["en"] };
+
+  const ctx = routeContext({ method: "POST", input: { message: "Operator override" } });
+  const enabled = await enableRoute(ctx, options);
+
+  // admin response reports the new scalar
+  assert.equal(enabled.state.message, "Operator override");
+  // and the public-facing copy reflects it instead of the seeded default-map entry
+  assert.equal(enabled.state.messages.en, "Operator override");
+
+  const publicView = publicState(enabled.state, options);
+  assert.equal(publicView.message, "Operator override");
+  assert.equal(publicView.messageLocale, "en");
+
+  // explicit messages management is still respected (no mirroring override)
+  const explicitCtx = routeContext({
+    method: "POST",
+    input: { message: "Scalar", messages: { en: "Explicit EN" } },
+  });
+  const explicit = await enableRoute(explicitCtx, options);
+  assert.equal(explicit.state.messages.en, "Explicit EN");
+});
+
 test("toggle preserves enabled for message-only patches but flips on bare toggle", async () => {
   const state = {
     enabled: true,

@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/data.ts:490 | scalar-message-no-public-update
 
 # POST `message` succeeds but does not change the public maintenance copy when `messages[defaultLocale]` exists
@@ -56,6 +56,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-27: open by Devana. Initial report written from static source inspection across all nine trails (`--all`).
+- 2026-06-27: fixed (suggested option 1). Added shared `readContentInput(input, current, defaultLocale)` helper used by `toggleRoute`/`enableRoute`/`disableRoute` (each passes `resolveDefaultLocale(options, ctx.site?.locale)`). When the body provides a non-blank `message` but omits `messages`, the helper mirrors the new scalar into `messages[defaultLocale]`, so the map-before-scalar `selectMessage` resolution surfaces the operator's update instead of a stale `defaultMessages`-seeded entry. Explicit `messages` management is untouched (no mirror when `messages` key present), and this does not conflict with the report-6 fix because here the operator's scalar update is intentionally the default-locale copy, so the `defaultLocale` label is correct by intent. Added test "scalar message update is mirrored into messages[defaultLocale] for public copy". Suite green (22 passing), typecheck clean.
 
 DEVANA-KEY: src/data.ts:490 | scalar-message-no-public-update
-DEVANA-SUMMARY: open | P2 | medium | Admin POST bodies that set only `message` update the scalar in KV but `selectMessage` keeps serving `messages[defaultLocale]`, so public copy does not change.
+DEVANA-SUMMARY: fixed | P2 | medium | Admin POST bodies that set only `message` update the scalar in KV but `selectMessage` keeps serving `messages[defaultLocale]`, so public copy does not change.

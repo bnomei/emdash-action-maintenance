@@ -69,12 +69,13 @@ export async function toggleRoute(
   // preserves the current state so editing copy never changes maintenance mode.
   const isContentPatch = Object.hasOwn(input, "message") || Object.hasOwn(input, "messages");
   const enabled = readEnabledInput(input, isContentPatch ? current.enabled : !current.enabled);
+  const content = readContentInput(input, current, resolveDefaultLocale(options, ctx.site?.locale));
   const state = await writeMaintenanceState(
     ctx,
     {
       enabled,
-      message: readMessageInput(input, current.message),
-      messages: readMessagesInput(input, current.messages),
+      message: content.message,
+      messages: content.messages,
       updatedAt: new Date().toISOString(),
     },
     options,
@@ -90,12 +91,13 @@ export async function enableRoute(
   assertPost(ctx);
   const current = await readMaintenanceState(ctx, options);
   const input = asRecord(ctx.input);
+  const content = readContentInput(input, current, resolveDefaultLocale(options, ctx.site?.locale));
   const state = await writeMaintenanceState(
     ctx,
     {
       enabled: true,
-      message: readMessageInput(input, current.message),
-      messages: readMessagesInput(input, current.messages),
+      message: content.message,
+      messages: content.messages,
       updatedAt: new Date().toISOString(),
     },
     options,
@@ -111,12 +113,13 @@ export async function disableRoute(
   assertPost(ctx);
   const current = await readMaintenanceState(ctx, options);
   const input = asRecord(ctx.input);
+  const content = readContentInput(input, current, resolveDefaultLocale(options, ctx.site?.locale));
   const state = await writeMaintenanceState(
     ctx,
     {
       enabled: false,
-      message: readMessageInput(input, current.message),
-      messages: readMessagesInput(input, current.messages),
+      message: content.message,
+      messages: content.messages,
       updatedAt: new Date().toISOString(),
     },
     options,
@@ -326,6 +329,30 @@ function readMessagesInput(
     throw PluginRouteError.badRequest("messages must be an object keyed by locale");
   }
   return { ...fallback, ...normalizeMessages(input.messages, true) };
+}
+
+function readContentInput(
+  input: Record<string, unknown>,
+  current: MaintenanceState,
+  defaultLocale: string,
+): { message: string; messages: LocalizedMaintenanceMessages } {
+  const message = readMessageInput(input, current.message);
+  const messages = readMessagesInput(input, current.messages);
+
+  // When the operator updates the scalar `message` without managing the locale
+  // map, mirror the new copy into the default-locale entry. The public page
+  // resolves the map before the scalar, so without this a `messages[defaultLocale]`
+  // seeded from `defaultMessages` would shadow the operator's update and the
+  // public copy would silently stay stale.
+  const providedMessage =
+    Object.hasOwn(input, "message") &&
+    typeof input.message === "string" &&
+    input.message.trim().length > 0;
+  if (providedMessage && !Object.hasOwn(input, "messages")) {
+    return { message, messages: { ...messages, [defaultLocale]: message } };
+  }
+
+  return { message, messages };
 }
 
 function readEnabledInput(input: Record<string, unknown>, fallback: boolean) {
