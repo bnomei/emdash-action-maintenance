@@ -381,6 +381,58 @@ test("template path bypass still populates locals.maintenance with fresh state",
   assert.equal(disabledLocals.maintenance.message, "Online");
 });
 
+test("function template renders via next() on rewrite pass-two instead of looping", async () => {
+  const middleware = createMaintenanceMiddleware({ template: () => "/maintenance" });
+  const locals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        return {
+          success: true,
+          data: {
+            enabled: true,
+            locale: "en",
+            message: "Down",
+            messageLocale: "en",
+            updatedAt: null,
+          },
+        };
+      },
+    },
+  };
+
+  // pass-one: a normal page rewrites to the resolved template path
+  const rewrites = [];
+  const passOne = await middleware(
+    {
+      request: new Request("https://example.test/page"),
+      locals,
+      rewrite: (target) => {
+        rewrites.push(target);
+        return new Response("rewritten");
+      },
+    },
+    () => new Response("next"),
+  );
+  assert.equal(await passOne.text(), "rewritten");
+  assert.deepEqual(rewrites, ["/maintenance"]);
+
+  // pass-two: now on the resolved template path, must render via next() (no loop)
+  const passTwo = await middleware(
+    {
+      request: new Request("https://example.test/maintenance"),
+      locals,
+      rewrite: (target) => {
+        rewrites.push(target);
+        return new Response("rewritten");
+      },
+    },
+    () => new Response("template-page"),
+  );
+  assert.equal(await passTwo.text(), "template-page");
+  assert.deepEqual(rewrites, ["/maintenance"]); // no second rewrite
+  assert.equal(locals.maintenance.enabled, true);
+});
+
 test("template bypass matches trailing-slash path variants", async () => {
   const middleware = createMaintenanceMiddleware({ template: "/maintenance" });
   const locals = {

@@ -117,7 +117,7 @@ export async function handleMaintenanceMode(
   if (!state.enabled) return next();
 
   setMaintenanceLocal(context, state);
-  return serveMaintenance(state, context, options);
+  return serveMaintenance(state, context, options, next);
 }
 
 function onStateUnavailable(
@@ -135,18 +135,30 @@ function onStateUnavailable(
     updatedAt: null,
   };
   setMaintenanceLocal(context, state);
-  return serveMaintenance(state, context, options);
+  return serveMaintenance(state, context, options, next);
 }
 
 async function serveMaintenance(
   state: PublicMaintenanceState,
   context: MaintenanceMiddlewareContext,
   options: MaintenanceMiddlewareOptions,
+  next: MaintenanceMiddlewareNext,
 ): Promise<Response> {
   if (options.render) return options.render(state, context);
 
   const template = await resolveTemplate(options.template, state, context);
-  if (template && context.rewrite) return context.rewrite(template);
+  if (template && context.rewrite) {
+    // A function template is invisible to the static pass-two bypass, so if the
+    // resolved target is the path we are already on, render it via next()
+    // instead of rewriting to ourselves (which would loop).
+    const url = context.url ?? new URL(context.request.url);
+    const templatePath = staticTemplatePath(template, url);
+    if (templatePath && normalizePath(url.pathname) === normalizePath(templatePath)) {
+      setMaintenanceLocal(context, state);
+      return next();
+    }
+    return context.rewrite(template);
+  }
 
   const responseOptions =
     typeof options.response === "function"

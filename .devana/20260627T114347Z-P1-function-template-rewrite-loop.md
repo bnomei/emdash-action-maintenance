@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P1 | high | security=no
+DEVANA-STATE: fixed | P1 | high | security=no
 DEVANA-KEY: src/middleware.ts:112 | function-template-rewrite-loop
 
 # Function `template` cannot complete Astro rewrite pass-two, causing a rewrite loop
@@ -56,6 +56,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-27: open by Devana. Initial report written from static source inspection across all nine trails (`--all`).
+- 2026-06-27: fixed. Rather than resolve a function template ahead of the fetch (impossible without state), `serveMaintenance` now resolves the template (concrete string/URL/Request) and, before rewriting, compares its pathname to the current request path (trailing-slash-normalized). If they match — i.e. we are already on the resolved template path, as on rewrite pass-two for a function template — it sets locals and returns `next()` so the custom Astro page renders, instead of rewriting to itself and looping. `serveMaintenance` now receives `next` (both the enabled path and the `failClosed` path pass it). String templates are unaffected (they bypass earlier via `matchesStaticTemplatePath`). Added test "function template renders via next() on rewrite pass-two instead of looping" asserting exactly one rewrite across both passes. Suite green (21 passing), typecheck clean.
 
 DEVANA-KEY: src/middleware.ts:112 | function-template-rewrite-loop
-DEVANA-SUMMARY: open | P1 | high | Function `template` values skip pass-two pathname bypass, so rewrite never reaches `next()` and custom maintenance Astro pages cannot render.
+DEVANA-SUMMARY: fixed | P1 | high | Function `template` values skip pass-two pathname bypass, so rewrite never reaches `next()` and custom maintenance Astro pages cannot render.
