@@ -322,7 +322,7 @@ function readMessagesInput(
   if (!input.messages || typeof input.messages !== "object" || Array.isArray(input.messages)) {
     throw PluginRouteError.badRequest("messages must be an object keyed by locale");
   }
-  return normalizeMessages(input.messages, true);
+  return { ...fallback, ...normalizeMessages(input.messages, true) };
 }
 
 function readEnabledInput(input: Record<string, unknown>, fallback: boolean) {

@@ -87,6 +87,40 @@ test("route methods require POST for mutations and expose POST action descriptor
   assert.equal(disabled.state.enabled, false);
 });
 
+test("partial messages POST merges with stored locales instead of replacing them", async () => {
+  const state = {
+    enabled: true,
+    message: "Base",
+    messages: { en: "Custom EN", de: "Custom DE", fr: "Custom FR" },
+    updatedAt: "2026-06-17T00:00:00.000Z",
+  };
+
+  const ctx = routeContext({
+    method: "POST",
+    input: { enabled: true, messages: { de: "Updated DE" } },
+    state,
+  });
+  const result = await toggleRoute(ctx);
+
+  assert.deepEqual(result.state.messages, {
+    en: "Custom EN",
+    de: "Updated DE",
+    fr: "Custom FR",
+  });
+
+  const emptyCtx = routeContext({
+    method: "POST",
+    input: { enabled: true, messages: {} },
+    state: result.state,
+  });
+  const unchanged = await toggleRoute(emptyCtx);
+  assert.deepEqual(unchanged.state.messages, {
+    en: "Custom EN",
+    de: "Updated DE",
+    fr: "Custom FR",
+  });
+});
+
 test("maintenance action copy follows i18n messages and fallback chains", async () => {
   const i18n = {
     locale: "fr-CA",
