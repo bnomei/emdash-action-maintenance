@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/middleware.ts:65 | render-bypass-beats-priority
 
 # Template-path bypass runs before `render`, violating documented render priority
@@ -56,6 +56,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-27: open by Devana. Initial report written from static source inspection across all nine trails (`--all`).
+- 2026-06-27: fixed. The template-path branch (introduced by the report-4 fix) now invokes `options.render` when maintenance is enabled and `render` is configured, before falling back to `next()`. So `render` takes priority over `template` on the template path too, matching the README ("render takes priority over template"); the same enabled state produces the same `render` output on `/page` and a direct `/maintenance` visit. Disabled visits still populate locals and `next()`; enabled visits without `render` still `next()` to the Astro page. (First tried routing through `serveMaintenance`, but that falls through to the built-in 503 when `context.rewrite` is unwired, breaking direct-visit tests — reverted to the surgical render check.) Added test "render takes priority over template even on direct template path visits". Suite green (23 passing), typecheck clean.
 
 DEVANA-KEY: src/middleware.ts:65 | render-bypass-beats-priority
-DEVANA-SUMMARY: open | P2 | medium | Direct visits to the static template path bypass maintenance before `render` runs, so `render`-over-`template` priority holds only on non-template URLs.
+DEVANA-SUMMARY: fixed | P2 | medium | Direct visits to the static template path bypass maintenance before `render` runs, so `render`-over-`template` priority holds only on non-template URLs.

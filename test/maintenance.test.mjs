@@ -457,6 +457,52 @@ test("function template renders via next() on rewrite pass-two instead of loopin
   assert.equal(locals.maintenance.enabled, true);
 });
 
+test("render takes priority over template even on direct template path visits", async () => {
+  let renderCalls = 0;
+  const middleware = createMaintenanceMiddleware({
+    template: "/maintenance",
+    render: (state) => {
+      renderCalls += 1;
+      return new Response(`render:${state.message}`, { status: 503 });
+    },
+  });
+  const locals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        return {
+          success: true,
+          data: {
+            enabled: true,
+            locale: "en",
+            message: "Down",
+            messageLocale: "en",
+            updatedAt: null,
+          },
+        };
+      },
+    },
+  };
+
+  // non-template path uses render
+  const page = await middleware(
+    { request: new Request("https://example.test/page"), locals, rewrite: () => new Response("rw") },
+    () => new Response("next"),
+  );
+  assert.equal(await page.text(), "render:Down");
+
+  // direct visit to the template path must also use render (documented priority)
+  const direct = await middleware(
+    {
+      request: new Request("https://example.test/maintenance"),
+      locals,
+      rewrite: () => new Response("rw"),
+    },
+    () => new Response("template"),
+  );
+  assert.equal(await direct.text(), "render:Down");
+  assert.equal(renderCalls, 2);
+});
+
 test("template bypass matches trailing-slash path variants", async () => {
   const middleware = createMaintenanceMiddleware({ template: "/maintenance" });
   const locals = {

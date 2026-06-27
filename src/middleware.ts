@@ -108,9 +108,14 @@ export async function handleMaintenanceMode(
 
   // On the template path, always refresh locals from the current read (even when
   // disabled) so a direct visit gets fresh state and a stale rewrite pass-two
-  // cannot leave an old snapshot behind. The page renders itself.
+  // cannot leave an old snapshot behind.
   if (isTemplatePath) {
     setMaintenanceLocal(context, state);
+    // `render` takes priority over `template` even on the template path itself,
+    // so an enabled state uses the same response producer everywhere. Without
+    // `render`, the request already landed on the template route — render it via
+    // next() (whether reached directly or by rewrite pass-two).
+    if (state.enabled && options.render) return options.render(state, context);
     return next();
   }
 
