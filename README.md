@@ -95,11 +95,12 @@ Astro.response.headers.set("Retry-After", "300");
 
 const state = Astro.locals.maintenance;
 const message = state?.message ?? DEFAULT_MESSAGE;
-const lang = state?.messageLocale ?? state?.locale ?? "en";
+const lang = state?.messageLocale ?? state?.locale;
+const htmlAttrs = lang ? { lang } : {};
 ---
 
 <!doctype html>
-<html lang={lang}>
+<html {...htmlAttrs}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />

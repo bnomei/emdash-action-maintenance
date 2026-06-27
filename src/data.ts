@@ -261,10 +261,10 @@ export function createMaintenanceResponse(
   const title = escapeHtml(options.title ?? maintenanceMessage("maintenance", undefined));
   const message = escapeHtml(state.message || DEFAULT_MESSAGE);
   const retryAfter = String(normalizeRetryAfter(options.retryAfterSeconds));
-  const responseLocale = state.messageLocale ?? state.locale ?? "en";
-  const lang = escapeHtml(responseLocale);
+  const responseLocale = state.messageLocale ?? state.locale;
+  const langAttribute = responseLocale ? ` lang="${escapeHtml(responseLocale)}"` : "";
   const html = `<!doctype html>
-<html lang="${lang}">
+<html${langAttribute}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -289,7 +289,7 @@ export function createMaintenanceResponse(
     "Content-Type": "text/html; charset=utf-8",
     "Retry-After": retryAfter,
   });
-  headers.set("Content-Language", responseLocale);
+  if (responseLocale) headers.set("Content-Language", responseLocale);
 
   return new Response(html, {
     // The Response constructor throws a RangeError for a status outside

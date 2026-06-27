@@ -343,6 +343,22 @@ test("maintenance response escapes HTML in title, language, and message", async 
   assert.doesNotMatch(html, /<script>alert/);
 });
 
+test("maintenance response omits language metadata when scalar language is unknown", async () => {
+  const response = createMaintenanceResponse({
+    enabled: true,
+    locale: null,
+    message: "Wir sind gleich zurück.",
+    messageLocale: null,
+    updatedAt: null,
+  });
+  const html = await response.text();
+
+  assert.equal(response.headers.get("Content-Language"), null);
+  assert.match(html, /<html>/);
+  assert.doesNotMatch(html, /<html lang=/);
+  assert.match(html, /Wir sind gleich zurück\./);
+});
+
 test("Retry-After header is coerced to a non-negative integer", () => {
   const state = {
     enabled: true,
