@@ -293,10 +293,10 @@ Available middleware options:
 - `locale`: Locale override. Defaults to `context.currentLocale`.
 - `bypass`: Additional route bypass function.
 - `failClosed`: How to behave when the public-state read fails (missing
-  handler, unsuccessful fetch, or invalid payload). Defaults to `false`
-  (fail-open: the request continues to the normal page). Set to `true` to serve
-  the maintenance response instead, so a transient backend error during an
-  outage does not reopen the public site.
+  handler, unsuccessful fetch, or invalid payload). Defaults to fail-closed:
+  the maintenance response is served so a transient backend error during an
+  outage does not reopen the public site. Set to `false` to fail open and let
+  the request continue to the normal page.
 
 ## Development
 

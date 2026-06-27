@@ -689,7 +689,7 @@ test("throwing locale/bypass callbacks fail open instead of 500ing the pipeline"
   assert.match(await closedRes.text(), /temporarily unavailable/i);
 });
 
-test("middleware fails open by default but fails closed when configured", async () => {
+test("middleware fails closed by default but can be configured to fail open", async () => {
   const failingLocals = {
     emdash: {
       handlePublicPluginApiRoute() {
@@ -704,10 +704,28 @@ test("middleware fails open by default but fails closed when configured", async 
       },
     },
   };
+  const throwingLocals = {
+    emdash: {
+      handlePublicPluginApiRoute() {
+        throw new Error("kv timeout");
+      },
+    },
+  };
 
-  // default: fail open on read failure and on invalid shape
-  for (const locals of [failingLocals, invalidLocals]) {
+  // default: fail closed on read failure, thrown handler, invalid shape, and missing handler
+  for (const locals of [failingLocals, throwingLocals, invalidLocals, {}]) {
     const mw = createMaintenanceMiddleware();
+    const res = await mw(
+      { request: new Request("https://example.test/page"), locals },
+      () => new Response("next"),
+    );
+    assert.equal(res.status, 503);
+    assert.match(await res.text(), /temporarily unavailable/i);
+  }
+
+  // explicit fail-open: continue on read failure, thrown handler, invalid shape, and missing handler
+  for (const locals of [failingLocals, throwingLocals, invalidLocals, {}]) {
+    const mw = createMaintenanceMiddleware({ failClosed: false });
     const res = await mw(
       { request: new Request("https://example.test/page"), locals },
       () => new Response("next"),
@@ -715,8 +733,8 @@ test("middleware fails open by default but fails closed when configured", async 
     assert.equal(await res.text(), "next");
   }
 
-  // failClosed: serve 503 on read failure, invalid shape, and missing handler
-  for (const locals of [failingLocals, invalidLocals, {}]) {
+  // failClosed true: serve 503 on read failure, thrown handler, invalid shape, and missing handler
+  for (const locals of [failingLocals, throwingLocals, invalidLocals, {}]) {
     const mw = createMaintenanceMiddleware({ failClosed: true });
     const res = await mw(
       { request: new Request("https://example.test/page"), locals },

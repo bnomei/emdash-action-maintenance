@@ -36,9 +36,9 @@ export interface MaintenanceMiddlewareOptions {
   /**
    * When the public-state read fails (missing handler, unsuccessful fetch, or
    * an invalid payload shape) the middleware cannot tell whether maintenance is
-   * enabled. By default it fails open and calls `next()`, keeping the site
-   * online. Set `failClosed` to serve the maintenance response instead, so a
-   * transient backend error during an outage does not reopen the public site.
+   * enabled. By default it fails closed and serves the maintenance response, so
+   * a transient backend error during an outage does not reopen the public site.
+   * Set `failClosed: false` to fail open and call `next()` instead.
    */
   failClosed?: boolean;
   locale?: string | ((context: MaintenanceMiddlewareContext) => string | null | undefined);
@@ -71,14 +71,13 @@ export async function handleMaintenanceMode(
   try {
     return await runMaintenanceMode(context, next, options);
   } catch {
-    // The middleware fails open for all of its own error sources (missing
-    // handler, failed/invalid state read). Preserve that contract for throwing
-    // caller callbacks (bypass/locale/render/template/response) too, so a buggy
+    // Preserve the fail-open contract for throwing caller callbacks
+    // (bypass/locale/render/template/response), so a buggy
     // callback can never break the public pipeline with a 500 — most importantly
     // for `bypass`/`locale`, which run before the enabled gate. When
     // `failClosed` is set, serve the built-in maintenance response WITHOUT
     // re-invoking the (possibly throwing) callbacks.
-    if (!options.failClosed) return next();
+    if (options.failClosed !== true) return next();
     const locale = safeResolveLocale(context, options);
     const state: PublicMaintenanceState = {
       enabled: true,
@@ -129,7 +128,12 @@ async function runMaintenanceMode(
     method: "GET",
   });
 
-  const result = await handlePublicRoute(PLUGIN_ID, "GET", "/public-state", stateRequest);
+  let result;
+  try {
+    result = await handlePublicRoute(PLUGIN_ID, "GET", "/public-state", stateRequest);
+  } catch {
+    return isTemplatePath ? next() : onStateUnavailable(context, next, options, locale);
+  }
   const state = isPublicMaintenanceState(result.data) ? result.data : null;
 
   // Distinguish a successful "disabled" read from a failed/invalid read: the
@@ -163,7 +167,7 @@ function onStateUnavailable(
   options: MaintenanceMiddlewareOptions,
   locale: string | null,
 ): Response | Promise<Response> {
-  if (!options.failClosed) return next();
+  if (options.failClosed === false) return next();
   const state: PublicMaintenanceState = {
     enabled: true,
     locale,
