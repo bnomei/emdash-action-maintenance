@@ -218,7 +218,10 @@ function maintenanceToggleDescriptor(action: MaintenanceActionPatch): Maintenanc
     icon: action.icon,
     tone: action.tone,
     pluginId: PLUGIN_ID,
-    route: "toggle",
+    // Target the absolute enable/disable route for the current state rather than
+    // the relative `toggle` route, so a retransmitted or concurrent click is
+    // idempotent instead of flipping maintenance the wrong way.
+    route: action.route,
     method: "POST",
     confirm: action.confirm,
     resultMode: "emdash-action-result-v1",
@@ -236,12 +239,14 @@ function maintenanceToggleAction(
         icon: "warning",
         tone: "danger",
         confirm: localizedMaintenanceMessage("disableConfirm", i18n),
+        route: "disable",
       }
     : {
         label: localizedMaintenanceMessage("enableLabel", i18n),
         icon: "check",
         tone: "positive",
         confirm: localizedMaintenanceMessage("enableConfirm", i18n),
+        route: "enable",
       };
 }
 

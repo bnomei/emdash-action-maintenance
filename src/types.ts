@@ -47,6 +47,10 @@ export interface MaintenanceActionPatch {
   icon: string;
   tone: MaintenanceActionTone;
   confirm: LocalizedString;
+  // Absolute route the button should POST to next ("enable" when maintenance is
+  // currently off, "disable" when on). Absolute routes are idempotent, so an
+  // HTTP retry or double-click cannot flip the state the wrong way.
+  route: "enable" | "disable";
 }
 
 export interface MaintenanceActionDescriptor {

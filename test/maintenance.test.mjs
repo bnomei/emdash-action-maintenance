@@ -73,18 +73,43 @@ test("route methods require POST for mutations and expose POST action descriptor
   await assert.rejects(() => enableRoute(routeContext()), /only accepts POST/);
   await assert.rejects(() => disableRoute(routeContext()), /only accepts POST/);
 
+  // disabled state -> descriptor targets the absolute `enable` route (idempotent)
   const manifest = await actionsManifestRoute(routeContext());
-  assert.equal(manifest.actions[0].route, "toggle");
+  assert.equal(manifest.actions[0].route, "enable");
   assert.equal(manifest.actions[0].method, "POST");
 
   const enableCtx = routeContext({ method: "POST", input: { message: "Back soon" } });
   const enabled = await enableRoute(enableCtx);
   assert.equal(enabled.state.enabled, true);
   assert.equal(enabled.state.message, "Back soon");
+  // after enabling, the button patch targets the absolute `disable` route
+  assert.equal(enabled.action.route, "disable");
+
+  // enabled state -> descriptor targets the absolute `disable` route
+  const enabledManifest = await actionsManifestRoute(routeContext({ state: enabled.state }));
+  assert.equal(enabledManifest.actions[0].route, "disable");
 
   const disableCtx = routeContext({ method: "POST", state: enabled.state });
   const disabled = await disableRoute(disableCtx);
   assert.equal(disabled.state.enabled, false);
+  assert.equal(disabled.action.route, "enable");
+});
+
+test("descriptor enable/disable route is retry-idempotent across duplicate POSTs", async () => {
+  // simulate an at-least-once retry of the same logical enable click on shared KV
+  const kvState = { enabled: false, message: "Down", messages: {}, updatedAt: null };
+  const sharedKv = routeContext({ state: kvState }).kv;
+  const ctxA = { input: {}, kv: sharedKv, request: new Request("https://x/", { method: "POST" }), site: { locale: "en" } };
+  const ctxB = { input: {}, kv: sharedKv, request: new Request("https://x/", { method: "POST" }), site: { locale: "en" } };
+
+  // descriptor for the disabled state points at the absolute `enable` route
+  const manifest = await actionsManifestRoute({ ...ctxA, request: new Request("https://x/") });
+  assert.equal(manifest.actions[0].route, "enable");
+
+  // two deliveries of the enable click both land on enable -> still enabled (idempotent)
+  await enableRoute(ctxA);
+  await enableRoute(ctxB);
+  assert.equal(sharedKv.store.get("state:maintenance").enabled, true);
 });
 
 test("partial messages POST merges with stored locales instead of replacing them", async () => {

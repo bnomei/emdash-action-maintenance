@@ -236,8 +236,10 @@ Action payloads may include `message`, `messages`, and for `toggle`, `enabled`. 
 
 The toggle route returns the persisted state plus the stable action patch consumed by `@bnomei/emdash-actions`. When maintenance mode is disabled, the manifest returns `Enable maintenance mode`; after a successful enable, the response patches the same button to `Disable maintenance mode`. The next successful toggle patches it back.
 
+The action patch (and the `.well-known/actions` descriptor) carries an absolute `route` — `enable` when maintenance is currently off, `disable` when on — rather than the relative `toggle` route. Because `enable`/`disable` write an absolute target, a retransmitted or concurrent click is idempotent and cannot flip the state the wrong way. The `toggle` route still exists for clients that want relative semantics.
+
 ```ts
-// Response body from POST /_emdash/api/plugins/action-maintenance/toggle
+// Response body from POST /_emdash/api/plugins/action-maintenance/enable
 {
   ok: true,
   message: "Maintenance mode enabled.",
@@ -246,6 +248,7 @@ The toggle route returns the persisted state plus the stable action patch consum
     icon: "warning",
     tone: "danger",
     confirm: "Bring the public site back online?",
+    route: "disable",
   },
 }
 ```

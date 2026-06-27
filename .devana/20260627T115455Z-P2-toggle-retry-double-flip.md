@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/data.ts:68 | toggle-retry-double-flip
 
 # `toggle` relative flip is non-idempotent: HTTP retry or concurrent click flips the wrong way
@@ -62,6 +62,7 @@ Preserve the original finding body. Update line 2 `DEVANA-STATE:` and the final 
 ## Status Notes
 
 - 2026-06-27: open by Devana. Static inspection via state-lifecycle trail. Same line as `toggle-messages-only-flips` but a different mechanism (retry/concurrency idempotency vs input-shape flip).
+- 2026-06-27: fixed (maintainer chose: point descriptor at enable/disable). The state-aware dashboard descriptor and the in-place button patch now carry an absolute `route` (`MaintenanceActionPatch.route: "enable" | "disable"`): `enable` when maintenance is off, `disable` when on. `maintenanceToggleAction` returns the route alongside the label/icon/tone/confirm so both `actionsManifestRoute` (manifest) and `actionResult` (post-click patch) keep the button targeting the correct absolute route as it flips. Since `enable`/`disable` write absolute targets, a retransmitted or concurrent click is idempotent and cannot net the wrong way; the relative `toggle` route still exists for clients. Note: the `emdash-action-result-v1` patch consumer lives in `@bnomei/emdash-actions` (not vendored here); adding `route` to the patch is additive and keeps the freshly-fetched manifest idempotent regardless. Updated tests (descriptor route is `enable`/`disable` per state, patch route flips, duplicate enable POSTs stay enabled) and README (response example + idempotency note). Suite green (26 passing), typecheck clean.
 
 DEVANA-KEY: src/data.ts:68 | toggle-retry-double-flip
-DEVANA-SUMMARY: open | P2 | medium | `toggle` derives `enabled` from a stale read across a non-atomic write, so an HTTP retry (or concurrent click) flips the maintenance state the wrong way; `enable`/`disable` are absolute and safe.
+DEVANA-SUMMARY: fixed | P2 | medium | `toggle` derives `enabled` from a stale read across a non-atomic write, so an HTTP retry (or concurrent click) flips the maintenance state the wrong way; `enable`/`disable` are absolute and safe.
