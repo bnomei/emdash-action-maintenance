@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P3 | medium | security=no
+DEVANA-STATE: fixed | P3 | medium | security=no
 DEVANA-KEY: src/data.ts:504 | messagelocale-mislabels-scalar
 
 # `selectMessage` labels the scalar fallback `message` as `defaultLocale`, producing a wrong `messageLocale` / `<html lang>` / `Content-Language`
@@ -54,6 +54,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-25: open by Devana. Initial report written from static source inspection.
+- 2026-06-27: fixed. `selectMessage` scalar-fallback branch now returns `{ message: state.message, locale: null }` instead of `locale: defaultLocale`, so an untagged scalar is no longer falsely asserted to be in `defaultLocale`. `messageLocale` becomes `null` and consumers fall back via `?? state.locale ?? "en"` (a last-resort default rather than a false assertion). Verified existing public-state tests are unaffected — they all carry an `en` key in `state.messages` and hit the matched branch, not the scalar fallback. Added test "scalar message fallback is not falsely tagged with defaultLocale" (German scalar, empty `messages`, `defaultLocale: "en"` → `messageLocale === null`). Suite green (20 passing), typecheck clean.
 
 DEVANA-KEY: src/data.ts:504 | messagelocale-mislabels-scalar
-DEVANA-SUMMARY: open | P3 | medium | The scalar fallback `message` is labeled `defaultLocale`, so a maintenance message authored in another language renders with a wrong `<html lang>` / `Content-Language`.
+DEVANA-SUMMARY: fixed | P3 | medium | The scalar fallback `message` is labeled `defaultLocale`, so a maintenance message authored in another language renders with a wrong `<html lang>` / `Content-Language`.

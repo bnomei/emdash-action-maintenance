@@ -124,6 +124,24 @@ test("public state falls back for unknown input locale values", async () => {
   assert.equal(result.messageLocale, "en");
 });
 
+test("scalar message fallback is not falsely tagged with defaultLocale", () => {
+  // No map entry matches the chain, so the untagged scalar message is used.
+  const scalarState = {
+    enabled: true,
+    message: "Wir sind gleich zurück.",
+    messages: {},
+    updatedAt: "2026-06-17T00:00:00.000Z",
+  };
+
+  const result = publicState(scalarState, {
+    defaultLocale: "en",
+    locales: ["en"],
+  });
+
+  assert.equal(result.message, "Wir sind gleich zurück.");
+  assert.equal(result.messageLocale, null);
+});
+
 test("public state validates query string locales the same way", async () => {
   const valid = await publicStateRoute(context(), {
     defaultLocale: "en",

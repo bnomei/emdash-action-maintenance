@@ -504,7 +504,11 @@ function selectMessage(
     if (message) return { message, locale: candidate };
   }
 
-  return { message: state.message, locale: defaultLocale };
+  // The scalar `message` carries no language tag; do not assert `defaultLocale`
+  // for it, since its text may be authored in another language. Returning null
+  // keeps `messageLocale`/`<html lang>`/`Content-Language` honest (consumers
+  // already fall back via `?? state.locale ?? "en"`).
+  return { message: state.message, locale: null };
 }
 
 function assertPost(ctx: RouteContext) {
