@@ -1,5 +1,5 @@
 DEVANA-FINDING: v1
-DEVANA-STATE: open | P2 | medium | security=no
+DEVANA-STATE: fixed | P2 | medium | security=no
 DEVANA-KEY: src/data.ts:295 | persisted-defaults-mask-config
 
 # Config `defaultMessages`/`defaultMessage` get baked into KV and mask later config changes
@@ -60,6 +60,7 @@ After working this report, preserve the original finding body. Update line 2 `DE
 ## Status Notes
 
 - 2026-06-27: open by Devana. Static inspection; corroborated independently by inside-out-paths and cache-persistence trails. Distinct from `partial-messages-replace-kv` (that is about partial input replacing the whole map; this is about config defaults being persisted and freezing).
+- 2026-06-27: fixed (suggested approach). Split the single `normalizeState` into `normalizeStoredState(value)` — validates down to admin-authored content only, never merging configured defaults (scalar `message` becomes `""` when unset, `messages` holds only admin locales) — and `resolveState(stored, options, siteLocale)` — applies `defaultMessages`/`defaultMessage` for serving. `writeMaintenanceState` now persists `normalizeStoredState(state)` (admin-only) and returns `resolveState(...)` so action responses still show effective copy. `readMaintenanceState` resolves on read. New internal `readStoredState(ctx)` returns admin-only state, and the three mutation routes (toggle/enable/disable) now base their writes on it, so the report-1 merge and report-8 mirror operate on admin-only fallbacks and never re-bake defaults. Net effect: KV holds only admin content, so editing/removing a configured default takes effect on the next read. Exported `readMaintenanceState`/`writeMaintenanceState` keep their resolved-return contract. Added test "configured defaults are not baked into KV and later config changes take effect" which inspects `kv.store` after a bare default-only toggle (asserts `messages: {}`, `message: ""`) and confirms a changed/removed default is honored on reread. Suite green (24 passing), typecheck clean.
 
 DEVANA-KEY: src/data.ts:295 | persisted-defaults-mask-config
-DEVANA-SUMMARY: open | P2 | medium | Configured `defaultMessages`/`defaultMessage` are merged into the persisted KV blob on write, so later config changes to defaults are masked and removed default locales keep being served.
+DEVANA-SUMMARY: fixed | P2 | medium | Configured `defaultMessages`/`defaultMessage` are merged into the persisted KV blob on write, so later config changes to defaults are masked and removed default locales keep being served.

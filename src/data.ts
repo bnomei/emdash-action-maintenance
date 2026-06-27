@@ -63,7 +63,7 @@ export async function toggleRoute(
   options: MaintenanceRouteOptions = {},
 ): Promise<MaintenanceActionResult> {
   assertPost(ctx);
-  const current = await readMaintenanceState(ctx, options);
+  const current = await readStoredState(ctx);
   const input = asRecord(ctx.input);
   // A bare toggle (no content fields) flips `enabled`; a message-only patch
   // preserves the current state so editing copy never changes maintenance mode.
@@ -89,7 +89,7 @@ export async function enableRoute(
   options: MaintenanceRouteOptions = {},
 ): Promise<MaintenanceActionResult> {
   assertPost(ctx);
-  const current = await readMaintenanceState(ctx, options);
+  const current = await readStoredState(ctx);
   const input = asRecord(ctx.input);
   const content = readContentInput(input, current, resolveDefaultLocale(options, ctx.site?.locale));
   const state = await writeMaintenanceState(
@@ -111,7 +111,7 @@ export async function disableRoute(
   options: MaintenanceRouteOptions = {},
 ): Promise<MaintenanceActionResult> {
   assertPost(ctx);
-  const current = await readMaintenanceState(ctx, options);
+  const current = await readStoredState(ctx);
   const input = asRecord(ctx.input);
   const content = readContentInput(input, current, resolveDefaultLocale(options, ctx.site?.locale));
   const state = await writeMaintenanceState(
@@ -144,8 +144,15 @@ export async function readMaintenanceState(
   ctx: MaintenanceStateContext,
   options: MaintenanceRouteOptions | string = {},
 ): Promise<MaintenanceState> {
+  const stored = await readStoredState(ctx);
+  return resolveState(stored, normalizeOptions(options), ctx.site?.locale);
+}
+
+// Read the raw admin-authored state (no configured defaults applied). Mutation
+// routes write from this so they never re-persist configuration defaults.
+async function readStoredState(ctx: MaintenanceStateContext): Promise<MaintenanceState> {
   const stored = await ctx.kv.get<Partial<MaintenanceState>>(STATE_KEY);
-  return normalizeState(stored, normalizeOptions(options), ctx.site?.locale);
+  return normalizeStoredState(stored);
 }
 
 export async function writeMaintenanceState(
@@ -153,9 +160,11 @@ export async function writeMaintenanceState(
   state: MaintenanceState,
   options: MaintenanceRouteOptions | string = {},
 ): Promise<MaintenanceState> {
-  const normalized = normalizeState(state, normalizeOptions(options), ctx.site?.locale);
-  await ctx.kv.set(STATE_KEY, normalized);
-  return normalized;
+  // Persist only admin-authored content; resolve defaults for the return value
+  // so callers (action responses, dashboards) still see the effective copy.
+  const stored = normalizeStoredState(state);
+  await ctx.kv.set(STATE_KEY, stored);
+  return resolveState(stored, normalizeOptions(options), ctx.site?.locale);
 }
 
 export function publicState(
@@ -283,8 +292,24 @@ export function createMaintenanceResponse(
   });
 }
 
-function normalizeState(
+// Validate a KV record (or write payload) down to admin-authored content only.
+// Configured defaults are NOT merged here — they are configuration fallbacks
+// applied on read by `resolveState`, never persisted. Persisting them would bake
+// the defaults into KV and freeze them, masking later config changes.
+function normalizeStoredState(
   value: Partial<MaintenanceState> | null | undefined,
+): MaintenanceState {
+  return {
+    enabled: value?.enabled === true,
+    message: typeof value?.message === "string" && value.message.trim() ? value.message : "",
+    messages: normalizeMessages(value?.messages),
+    updatedAt: typeof value?.updatedAt === "string" ? value.updatedAt : null,
+  };
+}
+
+// Apply configured defaults to an admin-authored stored state for serving/read.
+function resolveState(
+  stored: MaintenanceState,
   options: MaintenanceRouteOptions,
   siteLocale?: string,
 ): MaintenanceState {
@@ -292,17 +317,15 @@ function normalizeState(
   const defaultMessages = normalizeMessages(options.defaultMessages);
   const defaultMessage =
     options.defaultMessage ?? defaultMessages[defaultLocale] ?? DEFAULT_MESSAGE;
-  const storedMessages = normalizeMessages(value?.messages);
 
   return {
-    enabled: value?.enabled === true,
-    message:
-      typeof value?.message === "string" && value.message.trim() ? value.message : defaultMessage,
+    enabled: stored.enabled,
+    message: stored.message.trim() ? stored.message : defaultMessage,
     messages: {
       ...defaultMessages,
-      ...storedMessages,
+      ...stored.messages,
     },
-    updatedAt: typeof value?.updatedAt === "string" ? value.updatedAt : null,
+    updatedAt: stored.updatedAt,
   };
 }
 

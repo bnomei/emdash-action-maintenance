@@ -121,6 +121,37 @@ test("partial messages POST merges with stored locales instead of replacing them
   });
 });
 
+test("configured defaults are not baked into KV and later config changes take effect", async () => {
+  const ctx = routeContext({ method: "POST", input: {} }); // bare default-only toggle
+  await toggleRoute(ctx, {
+    defaultLocale: "en",
+    defaultMessages: { en: "English default", fr: "A" },
+    locales: ["en", "fr"],
+  });
+
+  // KV holds only admin-authored content — no configured default locales baked in
+  const persisted = ctx.kv.store.get("state:maintenance");
+  assert.equal(persisted.enabled, true);
+  assert.deepEqual(persisted.messages, {});
+  assert.equal(persisted.message, "");
+
+  // changing the configured default now takes effect on read (not masked)
+  const reread = await readMaintenanceState(ctx, {
+    defaultLocale: "en",
+    defaultMessages: { en: "English default", fr: "B" },
+    locales: ["en", "fr"],
+  });
+  assert.equal(reread.messages.fr, "B");
+
+  // removing a configured locale stops advertising it
+  const withoutFr = await readMaintenanceState(ctx, {
+    defaultLocale: "en",
+    defaultMessages: { en: "English default" },
+    locales: ["en"],
+  });
+  assert.equal(withoutFr.messages.fr, undefined);
+});
+
 test("scalar message update is mirrored into messages[defaultLocale] for public copy", async () => {
   const options = { defaultLocale: "en", defaultMessages: { en: "Plugin default EN" }, locales: ["en"] };
 
