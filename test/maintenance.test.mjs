@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  actionMaintenance,
   actionsManifestRoute,
+  createPlugin,
   createMaintenanceMiddleware,
   createMaintenanceResponse,
   disableRoute,
@@ -36,6 +39,48 @@ function routeContext({ method = "GET", input = {}, state, url = "https://exampl
     site: { locale: "en" },
   };
 }
+
+test("native plugin registration preserves options, route visibility, and persisted toggles", async () => {
+  const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const descriptor = actionMaintenance({
+    defaultLocale: "de",
+    defaultMessages: { de: "Wartung" },
+  });
+  const plugin = createPlugin(descriptor.options);
+
+  assert.equal(descriptor.version, pkg.version);
+  assert.equal(plugin.version, pkg.version);
+  assert.equal(descriptor.id, plugin.id);
+  assert.equal(descriptor.format, "native");
+  assert.equal(descriptor.entrypoint, pkg.name);
+  assert.equal(plugin.routes["public-state"].public, true);
+  for (const route of ["status", "summary", "toggle", "enable", "disable", ".well-known/actions"]) {
+    assert.notEqual(plugin.routes[route].public, true);
+  }
+
+  const ctx = routeContext({ method: "POST", input: { message: "Back tomorrow" } });
+  const enabled = await plugin.routes.toggle.handler(ctx);
+  assert.equal(enabled.state.enabled, true);
+  assert.deepEqual(ctx.kv.store.get("state:maintenance"), enabled.state);
+  const publicCtx = { ...ctx, input: {}, request: new Request("https://example.test/") };
+  const publicState = await plugin.routes["public-state"].handler(publicCtx);
+  assert.equal(publicState.enabled, true);
+  assert.equal(publicState.message, "Wartung");
+  assert.equal(publicState.messageLocale, "de");
+  assert.equal(
+    (await plugin.routes[".well-known/actions"].handler(publicCtx)).actions[0].tone,
+    "danger",
+  );
+
+  const disabled = await plugin.routes.toggle.handler({ ...ctx, input: {} });
+  assert.equal(disabled.state.enabled, false);
+  assert.equal(disabled.state.message, "Back tomorrow");
+  assert.equal((await plugin.routes["public-state"].handler(publicCtx)).enabled, false);
+  assert.equal(
+    (await plugin.routes[".well-known/actions"].handler(publicCtx)).actions[0].tone,
+    "positive",
+  );
+});
 
 test("maintenance state normalization filters invalid stored values and applies defaults", async () => {
   const ctx = routeContext({

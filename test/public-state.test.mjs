@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { getI18nConfig } from "emdash";
 import { publicState, publicStateRoute } from "../dist/index.mjs";
 
 const state = {
@@ -29,23 +27,18 @@ function context({ input, url = "https://example.test/?locale=de" } = {}) {
 }
 
 async function withEmDashI18nConfig(config, callback) {
-  const configModule = await loadEmDashConfigModule();
-  const setI18nConfig = configModule.i ?? configModule.setI18nConfig;
-  if (typeof setI18nConfig !== "function") throw new Error("EmDash i18n config setter not found");
-
-  setI18nConfig(config);
+  // EmDash 1.2 shares i18n configuration across entrypoints through this symbol.
+  // Seed that store without depending on hashed bundle names or minified exports.
+  const key = Symbol.for("emdash:i18n-config");
+  const previous = globalThis[key];
+  globalThis[key] = config;
   try {
+    assert.equal(getI18nConfig(), config);
     return await callback();
   } finally {
-    setI18nConfig(null);
+    if (previous === undefined) delete globalThis[key];
+    else globalThis[key] = previous;
   }
-}
-
-async function loadEmDashConfigModule() {
-  const emdashDist = dirname(fileURLToPath(import.meta.resolve("emdash")));
-  const configFile = (await readdir(emdashDist)).find((file) => /^config-.*\.mjs$/.test(file));
-  if (!configFile) throw new Error("EmDash i18n config module not found");
-  return import(pathToFileURL(join(emdashDist, configFile)).href);
 }
 
 test("public state accepts configured input locale values", async () => {

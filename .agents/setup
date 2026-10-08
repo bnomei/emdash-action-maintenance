@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 repo_root="$PWD"
-node_version=22.12.0 # Match .github/workflows/ci.yml.
+node_version=22.22.2 # Match .github/workflows/ci.yml.
 toolchain="$HOME/.local/share/emdash-action-maintenance/node-v$node_version"
 
 echo "Preparing Node $node_version"

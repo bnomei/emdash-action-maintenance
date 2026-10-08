@@ -12,6 +12,8 @@ Maintenance mode for EmDash sites.
 
 ## Install
 
+Requires EmDash 1.2 or later within 1.x and Node.js 22.22.2 or later.
+
 ```sh
 npm install @bnomei/emdash-action-maintenance
 ```

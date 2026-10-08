@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-10-08
+
+- Updated the supported EmDash peer range to `^1.2.0` and development dependency
+  to the 1.2 release line, with the lockfile resolving EmDash 1.2.0.
+- Raised the Node.js minimum and CI/orb toolchain to 22.22.2 to support EmDash's
+  registry verification dependency.
+- Replaced brittle hashed-bundle i18n test setup with EmDash 1.2's shared config
+  store and added native plugin registration and persisted toggle coverage.
+
 ## 0.4.0 - 2026-06-18
 
 - Added EmDash-shaped `i18n` options with `locale`, `defaultLocale`,
