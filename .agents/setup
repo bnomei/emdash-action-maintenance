@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+repo_root="$PWD"
+node_version=22.12.0 # Match .github/workflows/ci.yml.
+toolchain="$HOME/.local/share/emdash-action-maintenance/node-v$node_version"
+
+echo "Preparing Node $node_version"
+SECONDS=0
+if [[ ! -x "$toolchain/bin/node" ]]; then
+  case "$(uname -m)" in
+    x86_64) arch=x64 ;;
+    aarch64) arch=arm64 ;;
+    *) echo "Unsupported architecture" >&2; exit 1 ;;
+  esac
+  archive="node-v$node_version-linux-$arch.tar.xz"
+  download="$(mktemp -d)"
+  trap 'rm -rf "$download"' EXIT
+  curl --fail --silent --show-error --location "https://nodejs.org/dist/v$node_version/$archive" -o "$download/$archive"
+  curl --fail --silent --show-error --location "https://nodejs.org/dist/v$node_version/SHASUMS256.txt" -o "$download/SHASUMS256.txt"
+  (cd "$download"; grep " $archive\$" SHASUMS256.txt | sha256sum --check)
+  mkdir -p "$(dirname "$toolchain")"
+  tar -xJf "$download/$archive" -C "$download"
+  mv "$download/node-v$node_version-linux-$arch" "$toolchain"
+fi
+export PATH="$toolchain/bin:$PATH"
+npm_version="$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).packageManager.replace(/^npm@/, "")')"
+if [[ "$(npm --version)" != "$npm_version" ]]; then
+  npm install --global --prefix "$toolchain" "npm@$npm_version" --no-audit --no-fund
+fi
+
+# Amp and supervised services start in separate login shells.
+environment_file="$HOME/.local/share/emdash-action-maintenance/environment.sh"
+cat > "$environment_file" <<EOF
+if [[ "\$PWD" == "$repo_root" || "\$PWD" == "$repo_root/"* ]]; then
+  export PATH="$toolchain/bin:\$PATH"
+fi
+EOF
+profile_marker="# emdash-action-maintenance orb toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<EOF
+
+$profile_marker
+source "$environment_file"
+EOF
+fi
+echo "Toolchain ready in ${SECONDS}s: $(node --version), npm $(npm --version)"
+
+echo "Checking locked dependencies"
+SECONDS=0
+# Warm npm ci still replaces 870 packages (~16s); reuse the snapshot instead.
+fingerprint="$(
+  { sha256sum package.json package-lock.json .agents/setup; node --version; npm --version; uname -sm; } | sha256sum
+)"
+marker=node_modules/.amp-setup-fingerprint
+if [[ -f node_modules/.package-lock.json && -f "$marker" && "$(cat "$marker")" == "$fingerprint" ]]; then
+  echo "Reusing installed dependencies"
+else
+  rm -f "$marker"
+  npm ci --prefer-offline --no-audit --no-fund
+  printf '%s\n' "$fingerprint" > "$marker"
+fi
+echo "Dependencies ready in ${SECONDS}s"

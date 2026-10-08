@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# No services or per-thread authentication are required by this library.
+# Toolchains and dependencies are restored from the project snapshot.
